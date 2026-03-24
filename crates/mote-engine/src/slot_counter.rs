@@ -1,4 +1,4 @@
-use alloy_primitives::{keccak256, B256};
+use alloy_primitives::{B256, keccak256};
 
 pub fn used_slots_key() -> B256 {
     keccak256(b"moteUsedSlots")
