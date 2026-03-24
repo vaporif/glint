@@ -2,6 +2,9 @@ use alloy_primitives::B256;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum MoteError {
+    #[error("transaction contains no operations")]
+    EmptyTransaction,
+
     #[error("BTL must be > 0 and <= {max}", max = crate::constants::MAX_BTL)]
     InvalidBtl,
 

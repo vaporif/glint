@@ -1,19 +1,19 @@
 use alloy_evm::block::BlockExecutor as _;
 use alloy_evm::{Database, FromRecoveredTx, FromTxWithEncoded};
-use alloy_primitives::{B256, Log, U256};
+use alloy_primitives::{Log, B256, U256};
 use mote_primitives::{
     constants::PROCESSOR_ADDRESS,
-    entity::{EntityMetadata, derive_entity_key},
+    entity::{derive_entity_key, EntityMetadata},
     events::{EntityCreated, EntityDeleted, EntityExtended, EntityUpdated, LogAnnotations},
     storage::{compute_content_hash_from_raw, entity_content_hash_key, entity_storage_key},
 };
+use reth_ethereum::evm::primitives::{execute::BlockExecutionError, Evm};
 use reth_ethereum::TransactionSigned;
-use reth_ethereum::evm::primitives::{Evm, execute::BlockExecutionError};
 use revm::database::State;
 use std::collections::HashMap;
 
-use super::decode::{DecodedMoteTransaction, decode_with_raw_slices};
-use super::{MoteBlockExecutor, commit_storage_changes, mote_err};
+use super::decode::{decode_with_raw_slices, DecodedMoteTransaction};
+use super::{commit_storage_changes, mote_err, MoteBlockExecutor};
 
 use super::{MOTE_GAS_PER_CREATE, MOTE_GAS_PER_DELETE, MOTE_GAS_PER_EXTEND, MOTE_GAS_PER_UPDATE};
 
@@ -24,26 +24,27 @@ pub(super) enum ExpirationChange {
 }
 
 pub(super) struct CrudAccumulator {
-    pub logs: Vec<Log>,
-    pub gas_used: u64,
-    pub exp_changes: Vec<ExpirationChange>,
-    pub state_changes: HashMap<B256, U256>,
+    pub(super) logs: Vec<Log>,
+    pub(super) gas_used: u64,
+    pub(super) exp_changes: Vec<ExpirationChange>,
+    pub(super) state_changes: HashMap<B256, U256>,
+    pub(super) slot_counter_delta: i64,
 }
 
 impl<'db, DB, E> MoteBlockExecutor<'_, E>
 where
     DB: Database + 'db,
     E: Evm<
-            DB = &'db mut State<DB>,
-            Tx: FromRecoveredTx<TransactionSigned> + FromTxWithEncoded<TransactionSigned>,
-        >,
+        DB = &'db mut State<DB>,
+        Tx: FromRecoveredTx<TransactionSigned> + FromTxWithEncoded<TransactionSigned>,
+    >,
 {
     pub(super) fn execute_mote_crud(
         &mut self,
         calldata: &[u8],
         sender: alloy_primitives::Address,
         tx_hash: B256,
-    ) -> Result<(Vec<Log>, u64), BlockExecutionError> {
+    ) -> Result<CrudAccumulator, BlockExecutionError> {
         use alloy_evm::revm::context::Block as _;
         use mote_primitives::validation::validate_transaction;
 
@@ -59,6 +60,7 @@ where
             gas_used: 0,
             exp_changes: Vec::new(),
             state_changes: HashMap::new(),
+            slot_counter_delta: 0,
         };
 
         Self::process_creates(&mut acc, &decoded, sender, tx_hash, current_block);
@@ -66,7 +68,15 @@ where
         self.process_deletes(&mut acc, &decoded.tx.deletes, sender)?;
         self.process_extends(&mut acc, &decoded.tx.extends, current_block)?;
 
+        Ok(acc)
+    }
+
+    pub(super) fn commit_crud(
+        &mut self,
+        acc: CrudAccumulator,
+    ) -> Result<Vec<Log>, BlockExecutionError> {
         commit_storage_changes(self.inner.evm_mut(), &acc.state_changes);
+        super::update_slot_counter(self.inner.evm_mut(), acc.slot_counter_delta)?;
 
         let mut exp_idx = self
             .expiration_index
@@ -79,7 +89,7 @@ where
             }
         }
 
-        Ok((acc.logs, acc.gas_used))
+        Ok(acc.logs)
     }
 
     fn process_creates(
@@ -137,7 +147,13 @@ where
                 annotations,
             ));
 
-            acc.gas_used += MOTE_GAS_PER_CREATE;
+            acc.gas_used += MOTE_GAS_PER_CREATE
+                + (create.payload.len() as u64 * 16)
+                + (create.btl * 10)
+                + (annotation_gas_bytes(&create.string_annotations, &create.numeric_annotations)
+                    * 16);
+
+            acc.slot_counter_delta += crate::slot_counter::SLOTS_PER_ENTITY.cast_signed();
         }
     }
 
@@ -193,7 +209,11 @@ where
                 annotations,
             ));
 
-            acc.gas_used += MOTE_GAS_PER_UPDATE;
+            acc.gas_used += MOTE_GAS_PER_UPDATE
+                + (update.payload.len() as u64 * 16)
+                + (update.btl * 10)
+                + (annotation_gas_bytes(&update.string_annotations, &update.numeric_annotations)
+                    * 16);
         }
         Ok(())
     }
@@ -225,6 +245,8 @@ where
             ));
 
             acc.gas_used += MOTE_GAS_PER_DELETE;
+
+            acc.slot_counter_delta -= crate::slot_counter::SLOTS_PER_ENTITY.cast_signed();
         }
         Ok(())
     }
@@ -268,10 +290,24 @@ where
                 new_expires,
             ));
 
-            acc.gas_used += MOTE_GAS_PER_EXTEND;
+            acc.gas_used += MOTE_GAS_PER_EXTEND + (extend.additional_blocks * 10);
         }
         Ok(())
     }
+}
+
+fn annotation_gas_bytes(
+    string_annotations: &[mote_primitives::transaction::StringAnnotationWire],
+    numeric_annotations: &[mote_primitives::transaction::NumericAnnotationWire],
+) -> u64 {
+    string_annotations
+        .iter()
+        .map(|a| a.key.len() as u64 + a.value.len() as u64)
+        .sum::<u64>()
+        + numeric_annotations
+            .iter()
+            .map(|a| a.key.len() as u64 + 8u64)
+            .sum::<u64>()
 }
 
 fn unzip_annotations(

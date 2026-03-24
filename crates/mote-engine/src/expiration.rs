@@ -5,6 +5,7 @@ use std::collections::HashMap;
 #[derive(Debug, Default)]
 pub struct ExpirationIndex {
     index: HashMap<u64, Vec<B256>>,
+    last_drained: Option<u64>,
 }
 
 impl ExpirationIndex {
@@ -32,9 +33,22 @@ impl ExpirationIndex {
 
     /// Sorted for deterministic consensus ordering.
     pub fn drain_block(&mut self, block_number: u64) -> Vec<B256> {
+        self.last_drained = Some(block_number);
         let mut keys = self.index.remove(&block_number).unwrap_or_default();
         keys.sort();
         keys
+    }
+
+    pub const fn last_drained_block(&self) -> Option<u64> {
+        self.last_drained
+    }
+
+    pub const fn reset_last_drained(&mut self) {
+        self.last_drained = None;
+    }
+
+    pub fn clear_range(&mut self, range: std::ops::RangeInclusive<u64>) {
+        self.index.retain(|block, _| !range.contains(block));
     }
 
     /// Cold-start rebuild: scan the last `MAX_BTL` blocks of create/update/extend
@@ -113,6 +127,45 @@ mod tests {
         idx.insert(100, key);
         idx.remove(100, &key);
         assert_eq!(idx.get_expired(100), None);
+    }
+
+    #[test]
+    fn clear_range_removes_blocks_in_range() {
+        let mut idx = ExpirationIndex::new();
+        idx.insert(100, B256::repeat_byte(0x01));
+        idx.insert(101, B256::repeat_byte(0x02));
+        idx.insert(102, B256::repeat_byte(0x03));
+        idx.insert(200, B256::repeat_byte(0x04));
+
+        idx.clear_range(100..=102);
+
+        assert_eq!(idx.get_expired(100), None);
+        assert_eq!(idx.get_expired(101), None);
+        assert_eq!(idx.get_expired(102), None);
+        assert_eq!(idx.get_expired(200).map(<[B256]>::len), Some(1));
+    }
+
+    #[test]
+    fn last_drained_block_tracks_highest_drain() {
+        let mut idx = ExpirationIndex::new();
+        assert_eq!(idx.last_drained_block(), None);
+
+        idx.insert(100, B256::repeat_byte(0x01));
+        idx.drain_block(100);
+        assert_eq!(idx.last_drained_block(), Some(100));
+
+        idx.insert(200, B256::repeat_byte(0x02));
+        idx.drain_block(200);
+        assert_eq!(idx.last_drained_block(), Some(200));
+    }
+
+    #[test]
+    fn reset_drained_clears_tracking() {
+        let mut idx = ExpirationIndex::new();
+        idx.insert(100, B256::repeat_byte(0x01));
+        idx.drain_block(100);
+        idx.reset_last_drained();
+        assert_eq!(idx.last_drained_block(), None);
     }
 
     #[test]
