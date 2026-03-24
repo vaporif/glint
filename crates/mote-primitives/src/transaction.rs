@@ -77,7 +77,7 @@ impl From<(&str, u64)> for NumericAnnotationWire {
 }
 
 impl MoteTransaction {
-    pub fn total_operations(&self) -> usize {
+    pub const fn total_operations(&self) -> usize {
         self.creates.len() + self.updates.len() + self.deletes.len() + self.extends.len()
     }
 }

@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::annotations::{is_reserved_annotation_key, is_valid_annotation_key};
 use crate::constants::{
-    MAX_ANNOTATIONS_PER_ENTITY, MAX_ANNOTATION_KEY_SIZE, MAX_ANNOTATION_VALUE_SIZE, MAX_BTL,
+    MAX_ANNOTATION_KEY_SIZE, MAX_ANNOTATION_VALUE_SIZE, MAX_ANNOTATIONS_PER_ENTITY, MAX_BTL,
     MAX_CONTENT_TYPE_SIZE, MAX_OPS_PER_TX, MAX_PAYLOAD_SIZE,
 };
 use crate::error::MoteError;
@@ -10,21 +10,21 @@ use crate::transaction::{
     Create, Extend, MoteTransaction, NumericAnnotationWire, StringAnnotationWire, Update,
 };
 
-fn validate_btl(btl: u64) -> Result<(), MoteError> {
+const fn validate_btl(btl: u64) -> Result<(), MoteError> {
     if btl == 0 || btl > MAX_BTL {
         return Err(MoteError::InvalidBtl);
     }
     Ok(())
 }
 
-fn validate_content_type(ct: &str) -> Result<(), MoteError> {
+const fn validate_content_type(ct: &str) -> Result<(), MoteError> {
     if ct.is_empty() || ct.len() > MAX_CONTENT_TYPE_SIZE {
         return Err(MoteError::InvalidContentType);
     }
     Ok(())
 }
 
-fn validate_payload(payload: &[u8]) -> Result<(), MoteError> {
+const fn validate_payload(payload: &[u8]) -> Result<(), MoteError> {
     if payload.len() > MAX_PAYLOAD_SIZE {
         return Err(MoteError::PayloadTooLarge);
     }
@@ -87,7 +87,7 @@ pub fn validate_update(u: &Update) -> Result<(), MoteError> {
     validate_annotations(&u.string_annotations, &u.numeric_annotations)
 }
 
-pub fn validate_extend(e: &Extend) -> Result<(), MoteError> {
+pub const fn validate_extend(e: &Extend) -> Result<(), MoteError> {
     if e.additional_blocks == 0 {
         return Err(MoteError::InvalidExtend);
     }

@@ -27,7 +27,7 @@ impl ExpirationIndex {
     }
 
     pub fn get_expired(&self, block_number: u64) -> Option<&[B256]> {
-        self.index.get(&block_number).map(|v| v.as_slice())
+        self.index.get(&block_number).map(Vec::as_slice)
     }
 
     /// Sorted for deterministic consensus ordering.
@@ -37,7 +37,7 @@ impl ExpirationIndex {
         keys
     }
 
-    /// Cold-start rebuild: scan the last MAX_BTL blocks of create/update/extend
+    /// Cold-start rebuild: scan the last `MAX_BTL` blocks of create/update/extend
     /// logs and repopulate the index. Caller must pre-filter to only alive
     /// entities with their latest expiration — duplicates or stale entries here
     /// are consensus bugs.

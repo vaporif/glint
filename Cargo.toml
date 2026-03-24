@@ -6,8 +6,11 @@ members = ["crates/*"]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
+
 cargo = { level = "warn", priority = -1 }
 
+# TODO: clippy hangs (I've waited more than enough) with multicheck enabled on mote-primitives
+multiple_crate_versions = "allow"
 implicit_return = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
@@ -23,6 +26,11 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 authors = ["Dmytro Onypko <vaporif@proton.me>"]
+description = "Ephemeral entity layer for Ethereum"
+repository = "https://github.com/vaporif/mote"
+readme = "README.md"
+keywords = ["ethereum", "reth", "ephemeral", "storage"]
+categories = ["cryptography::cryptocurrencies"]
 
 [workspace.dependencies]
 alloy-primitives = "1.5"
@@ -43,4 +51,4 @@ revm-state = { version = "9.0.0", default-features = false }
 
 regex = "1"
 thiserror = "2"
-eyre = "0.6"
+color-eyre = "0.6"

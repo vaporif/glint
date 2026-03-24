@@ -1,10 +1,17 @@
 use alloy_primitives::{Address, B256, U256};
 use mote_primitives::{
     constants::MAX_BTL,
-    entity::{derive_entity_key, EntityKey, EntityMetadata},
+    entity::{EntityKey, EntityMetadata, derive_entity_key},
     error::MoteError,
     storage::{compute_content_hash_from_raw, entity_content_hash_key, entity_storage_key},
 };
+
+pub struct RawContentSlices<'a> {
+    pub payload_rlp: &'a [u8],
+    pub content_type_rlp: &'a [u8],
+    pub string_annotations_rlp: &'a [u8],
+    pub numeric_annotations_rlp: &'a [u8],
+}
 
 /// Testable interface for trie reads/writes. The real executor
 /// goes through revm directly.
@@ -46,7 +53,6 @@ fn delete_entity(state: &mut impl EntityState, entity_key: &B256) {
     state.write_slot(content_slot, U256::ZERO);
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn execute_create(
     state: &mut impl EntityState,
     tx_hash: &B256,
@@ -54,10 +60,7 @@ pub fn execute_create(
     current_block: u64,
     op_index: u32,
     create: &mote_primitives::transaction::Create,
-    payload_rlp: &[u8],
-    content_type_rlp: &[u8],
-    string_annotations_rlp: &[u8],
-    numeric_annotations_rlp: &[u8],
+    slices: &RawContentSlices<'_>,
 ) -> Result<EntityKey, MoteError> {
     let entity_key = derive_entity_key(tx_hash, &create.payload, op_index);
 
@@ -67,26 +70,22 @@ pub fn execute_create(
     };
 
     let content_hash = compute_content_hash_from_raw(
-        payload_rlp,
-        content_type_rlp,
-        string_annotations_rlp,
-        numeric_annotations_rlp,
+        slices.payload_rlp,
+        slices.content_type_rlp,
+        slices.string_annotations_rlp,
+        slices.numeric_annotations_rlp,
     );
 
     write_entity(state, &entity_key, &metadata, content_hash);
     Ok(entity_key)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn execute_update(
     state: &mut impl EntityState,
     sender: Address,
     current_block: u64,
     update: &mote_primitives::transaction::Update,
-    payload_rlp: &[u8],
-    content_type_rlp: &[u8],
-    string_annotations_rlp: &[u8],
-    numeric_annotations_rlp: &[u8],
+    slices: &RawContentSlices<'_>,
 ) -> Result<EntityMetadata, MoteError> {
     let old_meta = read_metadata(state, &update.entity_key)?;
     if old_meta.owner != sender {
@@ -99,10 +98,10 @@ pub fn execute_update(
     };
 
     let content_hash = compute_content_hash_from_raw(
-        payload_rlp,
-        content_type_rlp,
-        string_annotations_rlp,
-        numeric_annotations_rlp,
+        slices.payload_rlp,
+        slices.content_type_rlp,
+        slices.string_annotations_rlp,
+        slices.numeric_annotations_rlp,
     );
 
     write_entity(state, &update.entity_key, &new_metadata, content_hash);
@@ -183,10 +182,14 @@ mod tests {
             numeric_annotations: vec![],
         };
 
-        let payload_rlp = &[0x85, b'h', b'e', b'l', b'l', b'o'];
-        let content_type_rlp = &[
-            0x8a, b't', b'e', b'x', b't', b'/', b'p', b'l', b'a', b'i', b'n',
-        ];
+        let slices = RawContentSlices {
+            payload_rlp: &[0x85, b'h', b'e', b'l', b'l', b'o'],
+            content_type_rlp: &[
+                0x8a, b't', b'e', b'x', b't', b'/', b'p', b'l', b'a', b'i', b'n',
+            ],
+            string_annotations_rlp: &[0xc0],
+            numeric_annotations_rlp: &[0xc0],
+        };
         let result = execute_create(
             &mut state,
             &tx_hash,
@@ -194,10 +197,7 @@ mod tests {
             current_block,
             0,
             &create,
-            payload_rlp,
-            content_type_rlp,
-            &[0xc0],
-            &[0xc0],
+            &slices,
         );
 
         assert!(result.is_ok());
