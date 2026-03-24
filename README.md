@@ -23,7 +23,7 @@ mote-node (reth + OP Stack L3)
 │  │  Wraps EthBlockExecutorFactory             │  │
 │  │  Intercepts txs to PROCESSOR_ADDRESS       │  │
 │  │  Entity CRUD → trie writes (64 bytes)      │  │
-│  │  Expiration housekeeping (pre-execution)    │  │
+│  │  Expiration housekeeping (pre-execution)   │  │
 │  │  Emits lifecycle event logs                │  │
 │  └────────────────────────────────────────────┘  │
 │                                                  │
