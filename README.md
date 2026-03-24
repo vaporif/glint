@@ -10,7 +10,7 @@ Blockchains store data permanently. If you want to publish "I have 4 GPUs free f
 
 Mote gives you cheap writes, bounded state, automatic cleanup, and SQL over annotations.
 
-We're looking at AI agent coordination, intent protocols (UniswapX/CoW), compute marketplaces, ephemeral registries - basically anywhere people publish short-lived structured records and others need to query them.
+Target use cases: AI agent coordination, intent protocols (UniswapX/CoW), compute marketplaces, ephemeral registries - basically anywhere people publish short-lived structured records and others need to query them.
 
 ## Architecture
 
@@ -58,6 +58,29 @@ Three components, two processes.
 
 If the query service OOMs or DataFusion panics, blocks keep getting produced. The two things are completely independent. You can upgrade or restart the query service without touching the node.
 
+### Why Arrow + DataFusion
+
+GolemBase uses SQLite fed by a fire-and-forget goroutine. If that goroutine dies, queries silently serve stale data. No health check, no recovery, no way for a client to know the data is hours old. The SQLite dependency itself is an obscure v0.0.7 bitmap store library with no real community behind it.
+
+Mote uses Apache Arrow as the data format and DataFusion as the query engine. The main thing that makes this work well: Arrow is the in-memory format at every stage. The ExEx produces RecordBatches, the query service stores RecordBatches, DataFusion queries RecordBatches. No serialization step between any of these, no copying data between formats.
+
+On top of that:
+
+- Rust native, no C/C++ FFI. `cargo build` just works.
+- Apache 2.0 licensed, same as reth
+- `datafusion-flight-sql-server` gives Flight SQL out of the box - Grafana, DBeaver, Tableau, Jupyter all connect with standard JDBC/ODBC drivers, no adapter code needed
+- DataFusion's `TableProvider` trait maps to the entity table naturally. Implement one trait, get full SQL.
+- Python clients connect with 3 lines via `pyarrow.flight`. The format is the API - no custom SDK needed for basic reads.
+- Co-evolves with Arrow since it's part of the same Apache project
+
+Evaluated and rejected:
+
+- DuckDB embedded in reth - complex C++ engine sitting in the consensus path is a DoS vector. If it crashes, reth crashes. Adds real binary size too.
+- SpacetimeDB - can't embed it, RAM-only, BSL license
+- ClickHouse via chdb-rust - experimental bindings, 300MB binary size
+- SurrealDB - BSL license
+- Parquet files written by ExEx - duplicates data, reads are always stale, inflexible
+
 ## How it works
 
 ### Entity lifecycle
@@ -96,11 +119,11 @@ Each entity stores a 32-byte content hash on-chain: `keccak256(payload || conten
 
 The expiration index is an in-memory `HashMap<BlockNumber, Vec<EntityKey>>`, not stored on-chain. This saves 33% of trie costs compared to GolemBase's on-chain EnumerableSet. On cold start, the index gets rebuilt by scanning MAX_BTL blocks of event logs - takes seconds to a few minutes.
 
-## What we do differently from GolemBase
+## What's different from GolemBase
 
-Mote is a ground-up rewrite of [GolemBase](https://github.com/ArkivNetwork/golembase-op-geth) (also called Arkiv), an op-geth fork with ~5,900 lines of custom Go. The concepts are good. The implementation will be different in our case.
+Mote is a ground-up rewrite of [GolemBase](https://github.com/ArkivNetwork/golembase-op-geth) (also called Arkiv), an op-geth fork with ~5,900 lines of custom Go. The concepts are good. The implementation will be different.
 
-### What we keep
+### What stays
 
 - Magic address interception (no contract deployment needed)
 - BTL-based auto-expiration
@@ -109,12 +132,11 @@ Mote is a ground-up rewrite of [GolemBase](https://github.com/ArkivNetwork/golem
 - Atomic multi-operation transactions
 - Ownership model (owner = tx.sender, owner-gated mutations)
 
-### What we change
+### What changes
 
 | | GolemBase | Mote | Why |
 |---|---|---|---|
 | Base | op-geth fork (~5,900 lines) | reth plugin (BlockExecutor + ExEx) | Forks die when upstream moves. reth's trait system lets us extend without forking. |
-| Language | Go | Rust | Type system prevents entire classes of bugs (see below) |
 | On-chain cost | ~96 bytes/entity (3 slots) | 64 bytes/entity (2 slots) | Moved the expiration index off-chain. 33% cheaper per entity, forever. |
 | Content integrity | None | 32-byte content hash | Without it, a sequencer can serve fake data and nobody can prove it |
 | Query engine | SQLite (in-process, fire-and-forget goroutine) | DataFusion (separate process, Arrow streaming) | The SQLite goroutine can crash silently and serve stale data forever |
