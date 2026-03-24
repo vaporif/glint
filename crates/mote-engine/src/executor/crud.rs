@@ -61,7 +61,7 @@ where
             state_changes: HashMap::new(),
         };
 
-        self.process_creates(&mut acc, &decoded, sender, tx_hash, current_block);
+        Self::process_creates(&mut acc, &decoded, sender, tx_hash, current_block);
         self.process_updates(&mut acc, &decoded, sender, current_block)?;
         self.process_deletes(&mut acc, &decoded.tx.deletes, sender)?;
         self.process_extends(&mut acc, &decoded.tx.extends, current_block)?;
@@ -82,9 +82,7 @@ where
         Ok((acc.logs, acc.gas_used))
     }
 
-    #[allow(clippy::unused_self)]
     fn process_creates(
-        &self,
         acc: &mut CrudAccumulator,
         decoded: &DecodedMoteTransaction<'_>,
         sender: alloy_primitives::Address,
