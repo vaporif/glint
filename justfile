@@ -1,7 +1,9 @@
 default:
     @just --list
 
-check: clippy test check-fmt lint-actions
+check: clippy test check-fmt lint
+
+lint: lint-toml check-typos check-nix-fmt lint-actions
 
 fmt: fmt-rust fmt-toml fmt-nix
 

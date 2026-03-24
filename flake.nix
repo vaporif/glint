@@ -82,17 +82,6 @@
           pname = "mote";
         };
 
-        clippy = craneLib.cargoClippy (commonArgs
-          // {
-            inherit cargoArtifacts;
-            cargoClippyExtraArgs = "--workspace -- -D warnings";
-          });
-
-        nextest = craneLib.cargoNextest (commonArgs
-          // {
-            inherit cargoArtifacts;
-          });
-
         taplo =
           pkgs.runCommand "taplo-check" {
             nativeBuildInputs = [pkgs.taplo];
