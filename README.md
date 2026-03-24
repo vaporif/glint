@@ -110,13 +110,15 @@ Arrow is the in-memory format at every stage. The ExEx produces RecordBatches, t
 | Extensibility | Ad-hoc SQL schema, manual query plumbing. | Implement DataFusion's `TableProvider` trait, get full SQL with pushdown filters. |
 | License | Varies by binding | Apache 2.0, same as reth. |
 
-Also looked at:
+Other query engines considered for mote-analytics:
 
-- DuckDB embedded in reth - a C++ engine in the consensus path is a DoS vector. If it crashes, reth crashes. Also adds real binary size.
-- SpacetimeDB - can't embed it without putting a lot of machinery in the consensus path, and the abstraction layer adds latency you don't want there. BSL licensed.
-- ClickHouse via chdb-rust - experimental bindings, 300MB binary size
-- SurrealDB - BSL license
-- Parquet files written by ExEx - duplicates data, reads are always stale
+- DuckDB - C++ with Rust FFI. Mature and fast, but adds a C++ dependency to the build and ~30MB to the binary. Arrow zero-copy works well, but DataFusion gets the same thing without leaving Rust.
+- SpacetimeDB - standalone server, can't use it as a library. The abstraction layer adds milliseconds of latency where DataFusion does microseconds. BSL licensed.
+- ClickHouse via chdb-rust - `chdb-rust` has ~125 downloads/month, experimental API, 300MB shared library. ClickHouse server itself needs its own deployment.
+- SurrealDB - closest off-the-shelf option (has `LIVE SELECT`, written in Rust), but BSL license and full DB engine overhead for ~50MB of live data.
+- Materialize / ReadySet / RisingWave - streaming SQL with incremental view maintenance. All need separate server deployments. Materialize and ReadySet are BSL. RisingWave is Apache 2.0 but designed for distributed cloud-scale, overkill here.
+- Feldera (DBSP) - Rust crate for incremental view maintenance, MIT licensed. SQL layer requires a Java (Apache Calcite) build step though. Not practical.
+- Parquet files from ExEx instead of streaming - duplicates data already in MDBX, reads are always stale (batch flush lag), and file management (rotation, cleanup, reorg tombstones) becomes the ExEx's problem.
 
 ## How it works
 
