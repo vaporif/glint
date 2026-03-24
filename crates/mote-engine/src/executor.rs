@@ -36,7 +36,7 @@ use revm::{
     DatabaseCommit, Inspector,
     context::result::{ExecutionResult, ResultAndState},
     database::State,
-    state::{Account, AccountStatus, EvmStorageSlot},
+    state::{Account, AccountInfo, AccountStatus, EvmStorageSlot},
 };
 use std::{
     collections::HashMap,
@@ -53,7 +53,7 @@ pub struct MoteExecutorBuilder {
 }
 
 impl MoteExecutorBuilder {
-    pub fn new(expiration_index: SharedExpirationIndex) -> Self {
+    pub const fn new(expiration_index: SharedExpirationIndex) -> Self {
         Self { expiration_index }
     }
 }
@@ -367,7 +367,7 @@ fn commit_storage_changes<E: Evm<DB: DatabaseCommit>>(evm: &mut E, changes: &Has
     }
 
     let account = Account {
-        info: Default::default(),
+        info: AccountInfo::default(),
         original_info: Box::default(),
         transaction_id: 0,
         storage,

@@ -1,19 +1,19 @@
 use alloy_evm::block::BlockExecutor as _;
 use alloy_evm::{Database, FromRecoveredTx, FromTxWithEncoded};
-use alloy_primitives::{B256, Log, U256};
+use alloy_primitives::{Log, B256, U256};
 use mote_primitives::{
     constants::PROCESSOR_ADDRESS,
-    entity::{EntityMetadata, derive_entity_key},
+    entity::{derive_entity_key, EntityMetadata},
     events::{EntityCreated, EntityDeleted, EntityExtended, EntityUpdated},
     storage::{compute_content_hash_from_raw, entity_content_hash_key, entity_storage_key},
 };
+use reth_ethereum::evm::primitives::{execute::BlockExecutionError, Evm};
 use reth_ethereum::TransactionSigned;
-use reth_ethereum::evm::primitives::{Evm, execute::BlockExecutionError};
 use revm::database::State;
 use std::collections::HashMap;
 
-use super::decode::{DecodedMoteTransaction, decode_with_raw_slices};
-use super::{MoteBlockExecutor, commit_storage_changes, mote_err};
+use super::decode::{decode_with_raw_slices, DecodedMoteTransaction};
+use super::{commit_storage_changes, mote_err, MoteBlockExecutor};
 
 use super::{MOTE_GAS_PER_CREATE, MOTE_GAS_PER_DELETE, MOTE_GAS_PER_EXTEND, MOTE_GAS_PER_UPDATE};
 
@@ -34,9 +34,9 @@ impl<'db, DB, E> MoteBlockExecutor<'_, E>
 where
     DB: Database + 'db,
     E: Evm<
-            DB = &'db mut State<DB>,
-            Tx: FromRecoveredTx<TransactionSigned> + FromTxWithEncoded<TransactionSigned>,
-        >,
+        DB = &'db mut State<DB>,
+        Tx: FromRecoveredTx<TransactionSigned> + FromTxWithEncoded<TransactionSigned>,
+    >,
 {
     pub(super) fn execute_mote_crud(
         &mut self,
@@ -82,6 +82,7 @@ where
         Ok((acc.logs, acc.gas_used))
     }
 
+    #[allow(clippy::unused_self)]
     fn process_creates(
         &self,
         acc: &mut CrudAccumulator,
@@ -90,9 +91,18 @@ where
         tx_hash: B256,
         current_block: u64,
     ) {
-        let mut op_index = 0u32;
-        for (create, slices) in decoded.tx.creates.iter().zip(&decoded.create_slices) {
-            let entity_key = derive_entity_key(&tx_hash, &create.payload, op_index);
+        for (op_index, (create, slices)) in decoded
+            .tx
+            .creates
+            .iter()
+            .zip(&decoded.create_slices)
+            .enumerate()
+        {
+            let entity_key = derive_entity_key(
+                &tx_hash,
+                &create.payload,
+                u32::try_from(op_index).expect("op count bounded by MAX_OPS_PER_TX"),
+            );
             let expires_at = current_block + create.btl;
 
             let metadata = EntityMetadata {
@@ -133,7 +143,6 @@ where
             ));
 
             acc.gas_used += MOTE_GAS_PER_CREATE;
-            op_index += 1;
         }
     }
 

@@ -1,5 +1,5 @@
-use alloy_primitives::{Address, B256, Bytes, Log};
-use alloy_sol_types::{SolEvent, sol};
+use alloy_primitives::{Address, Bytes, Log, B256};
+use alloy_sol_types::{sol, SolEvent};
 
 sol! {
     event EntityCreated(
@@ -59,7 +59,7 @@ impl EntityCreated {
         numeric_annotation_values: Vec<u64>,
     ) -> Log {
         let event = Self {
-            entity_key: entity_key.into(),
+            entity_key,
             owner,
             expires_at,
             content_type,
@@ -92,7 +92,7 @@ impl EntityUpdated {
         numeric_annotation_values: Vec<u64>,
     ) -> Log {
         let event = Self {
-            entity_key: entity_key.into(),
+            entity_key,
             owner,
             old_expires_at,
             new_expires_at,
@@ -112,10 +112,7 @@ impl EntityUpdated {
 
 impl EntityDeleted {
     pub fn new_log(address: Address, entity_key: B256, owner: Address) -> Log {
-        let event = Self {
-            entity_key: entity_key.into(),
-            owner,
-        };
+        let event = Self { entity_key, owner };
         Log {
             address,
             data: event.encode_log_data(),
@@ -125,10 +122,7 @@ impl EntityDeleted {
 
 impl EntityExpired {
     pub fn new_log(address: Address, entity_key: B256, owner: Address) -> Log {
-        let event = Self {
-            entity_key: entity_key.into(),
-            owner,
-        };
+        let event = Self { entity_key, owner };
         Log {
             address,
             data: event.encode_log_data(),
@@ -144,7 +138,7 @@ impl EntityExtended {
         new_expires_at: u64,
     ) -> Log {
         let event = Self {
-            entity_key: entity_key.into(),
+            entity_key,
             old_expires_at,
             new_expires_at,
         };
