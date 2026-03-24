@@ -21,5 +21,26 @@ cognitive_complexity = "allow"
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["Dmytro Onypko <vaporif@proton.me>"]
 
 [workspace.dependencies]
+alloy-primitives = "1.5"
+alloy-rlp = { version = "0.3", features = ["derive"] }
+alloy-sol-types = "1.5"
+alloy-consensus = "1.7"
+alloy-evm = "0.27"
+
+reth-ethereum = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.11.3", features = ["node", "node-api", "evm", "cli"] }
+reth-evm = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.11.3" }
+reth-execution-types = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.11.3" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.11.3" }
+reth-trie = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.11.3" }
+reth-node-builder = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.11.3" }
+
+revm = { version = "34.0.0", default-features = false }
+revm-state = { version = "9.0.0", default-features = false }
+
+regex = "1"
+thiserror = "2"
+eyre = "0.6"
