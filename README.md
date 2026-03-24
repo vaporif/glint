@@ -2,7 +2,7 @@
 
 Ephemeral on-chain storage as an OP Stack L3, built on reth.
 
-Mote adds a BTL (Blocks-to-Live) primitive to Ethereum - you create entities with a TTL, attach annotations, query them with SQL, and they disappear when their time is up.
+Mote adds a BTL (Blocks-to-Live) primitive to Ethereum. Entities have a TTL, carry queryable annotations, and disappear when their time is up.
 
 ## Why
 
@@ -98,7 +98,7 @@ graph TB
 
 ### Why Arrow + DataFusion (not SQLite)
 
-Arrow is the in-memory format at every stage. The ExEx produces RecordBatches, the query service stores them, DataFusion queries them. Nothing gets serialized or copied between formats.
+Arrow is the in-memory format at every stage - from ExEx output through query execution. Nothing gets serialized or copied between formats.
 
 | | SQLite (GolemBase) | DataFusion + Arrow (Mote) |
 |---|---|---|
@@ -135,6 +135,16 @@ Other query engines considered for mote-analytics:
 4. **Delete** (owner only) - Immediate removal.
 
 5. **Expire** (automatic) - At the start of each block, before any transactions execute, the engine checks an in-memory expiration index (`HashMap<BlockNumber, Vec<EntityKey>>`) and removes everything whose TTL has elapsed. The index isn't stored on-chain - on cold start it rebuilds by scanning MAX_BTL blocks of event logs.
+
+### Recovery
+
+Everything in-memory rebuilds from the chain. No snapshots, no separate sync mode.
+
+On node restart, `mote-engine` scans MAX_BTL blocks of entity event logs from reth's database to reconstruct the expiration index. Log reading only, not EVM re-execution - at ~1 week of history (302,400 blocks at 2s) this takes seconds to a few minutes.
+
+On analytics restart, `mote-analytics` connects to the ExEx IPC stream and rebuilds from empty. The ExEx replays from its WAL checkpoint, and after MAX_BTL blocks from tip all live entities are reconstructed. Anything older is already expired. Crash, disconnect, fresh deploy - same path every time.
+
+If the ExEx's IPC buffer overflows (1024 batches, ~34 min of headroom at 2s blocks), it disconnects mote-analytics, which rebuilds from scratch on reconnect. If the ExEx itself panics, reth keeps producing blocks and the WAL retains notifications until the ExEx catches up.
 
 ## Crate structure
 
