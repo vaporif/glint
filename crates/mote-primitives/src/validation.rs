@@ -96,6 +96,9 @@ pub const fn validate_extend(e: &Extend) -> Result<(), MoteError> {
 
 pub fn validate_transaction(tx: &MoteTransaction) -> Result<(), MoteError> {
     let total = tx.total_operations();
+    if total == 0 {
+        return Err(MoteError::EmptyTransaction);
+    }
     if total > MAX_OPS_PER_TX {
         return Err(MoteError::TooManyOperations(total));
     }
@@ -299,6 +302,17 @@ mod tests {
             validate_transaction(&tx),
             Err(MoteError::TooManyOperations(_))
         ));
+    }
+
+    #[test]
+    fn empty_transaction_rejected() {
+        let tx = MoteTransaction {
+            creates: vec![],
+            updates: vec![],
+            deletes: vec![],
+            extends: vec![],
+        };
+        assert_eq!(validate_transaction(&tx), Err(MoteError::EmptyTransaction));
     }
 
     #[test]

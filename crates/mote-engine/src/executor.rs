@@ -10,7 +10,7 @@ use alloy_evm::{
     eth::{EthBlockExecutionCtx, EthBlockExecutor, EthTxResult},
     precompiles::PrecompilesMap,
 };
-use alloy_primitives::{B256, U256};
+use alloy_primitives::{B256, Log, U256};
 use mote_primitives::{
     constants::PROCESSOR_ADDRESS,
     entity::EntityMetadata,
@@ -106,6 +106,7 @@ impl BlockExecutorFactory for MoteEvmConfig {
                 self.inner.executor_factory.receipt_builder(),
             ),
             expiration_index: self.expiration_index.clone(),
+            pending_logs: Vec::new(),
         }
     }
 }
@@ -179,12 +180,17 @@ impl ConfigureEngineEvm<ExecutionData> for MoteEvmConfig {
 pub struct MoteBlockExecutor<'a, Evm> {
     inner: EthBlockExecutor<'a, Evm, &'a Arc<ChainSpec>, &'a RethReceiptBuilder>,
     expiration_index: SharedExpirationIndex,
+    pending_logs: Vec<Log>,
 }
 
 const MOTE_GAS_PER_CREATE: u64 = 50_000;
 const MOTE_GAS_PER_UPDATE: u64 = 40_000;
 const MOTE_GAS_PER_DELETE: u64 = 10_000;
 const MOTE_GAS_PER_EXTEND: u64 = 10_000;
+
+const INTRINSIC_GAS: u64 = 21_000;
+const GAS_PER_DATA_BYTE: u64 = revm::context_interface::cfg::gas::NON_ZERO_BYTE_DATA_COST_ISTANBUL;
+const GAS_PER_BTL_BLOCK: u64 = 10;
 
 impl<'db, DB, E> BlockExecutor for MoteBlockExecutor<'_, E>
 where
@@ -212,9 +218,25 @@ where
 
         let tx_ref = recovered.tx();
         if !matches!(tx_ref.to(), Some(addr) if addr == PROCESSOR_ADDRESS) {
-            return self
+            let mut result = self
                 .inner
-                .execute_transaction_without_commit((tx_env, recovered));
+                .execute_transaction_without_commit((tx_env, recovered))?;
+
+            if !self.pending_logs.is_empty() {
+                let expiration_logs = std::mem::take(&mut self.pending_logs);
+                match &mut result.result.result {
+                    ExecutionResult::Success { logs, .. } => {
+                        let mut all = expiration_logs;
+                        all.append(logs);
+                        *logs = all;
+                    }
+                    ExecutionResult::Revert { .. } | ExecutionResult::Halt { .. } => {
+                        self.pending_logs = expiration_logs;
+                    }
+                }
+            }
+
+            return Ok(result);
         }
 
         let sender = *recovered.signer();
@@ -223,11 +245,34 @@ where
         let tx_type = tx_ref.tx_type();
         let tx_hash = tx_ref.trie_hash();
 
-        let (logs, mote_gas_used) = self.execute_mote_crud(calldata, sender, tx_hash)?;
+        let staged = self.execute_mote_crud(calldata, sender, tx_hash)?;
 
-        // TODO: revert instead of capping when gas_limit < total
-        let intrinsic_gas = 21_000u64 + calldata.len() as u64 * 16;
-        let total_gas = intrinsic_gas.saturating_add(mote_gas_used).min(gas_limit);
+        let intrinsic_gas = INTRINSIC_GAS + calldata.len() as u64 * GAS_PER_DATA_BYTE;
+        let total_gas = intrinsic_gas.saturating_add(staged.gas_used);
+
+        if gas_limit < total_gas {
+            let result = ResultAndState {
+                result: ExecutionResult::Revert {
+                    gas_used: gas_limit,
+                    output: alloy_primitives::Bytes::from_static(
+                        b"insufficient gas for mote operations",
+                    ),
+                },
+                state: HashMap::default(),
+            };
+            return Ok(EthTxResult {
+                result,
+                blob_gas_used: 0,
+                tx_type,
+            });
+        }
+
+        let mut logs = self.commit_crud(staged)?;
+        if !self.pending_logs.is_empty() {
+            let mut all_logs = std::mem::take(&mut self.pending_logs);
+            all_logs.append(&mut logs);
+            logs = all_logs;
+        }
 
         let result = ResultAndState {
             result: ExecutionResult::Success {
@@ -252,6 +297,7 @@ where
     }
 
     fn finish(self) -> Result<(Self::Evm, BlockExecutionResult<Receipt>), BlockExecutionError> {
+        // Empty blocks drop expiration logs - BlockExecutionResult has no logs field.
         self.inner.finish()
     }
 
@@ -304,18 +350,27 @@ where
         Ok(EntityMetadata::decode(&bytes))
     }
 
-    /// Wipes expired entities at the start of each block.
     fn run_expiration_housekeeping(&mut self) -> Result<(), BlockExecutionError> {
         use alloy_evm::revm::context::Block as _;
+        use mote_primitives::events::EntityExpired;
         use revm::Database as _;
 
         let current_block: u64 = self.inner.evm().block().number().saturating_to();
 
-        let expired_keys = self
+        let mut exp_idx = self
             .expiration_index
             .lock()
-            .map_err(|e| mote_err(format!("expiration index lock: {e}")))?
-            .drain_block(current_block);
+            .map_err(|e| mote_err(format!("expiration index lock: {e}")))?;
+
+        if let Some(last) = exp_idx.last_drained_block()
+            && current_block <= last
+        {
+            exp_idx.clear_range(current_block..=last);
+            exp_idx.reset_last_drained();
+        }
+
+        let expired_keys = exp_idx.drain_block(current_block);
+        drop(exp_idx);
 
         if expired_keys.is_empty() {
             return Ok(());
@@ -344,17 +399,55 @@ where
                 continue;
             }
 
+            self.pending_logs.push(EntityExpired::new_log(
+                PROCESSOR_ADDRESS,
+                *entity_key,
+                meta.owner,
+            ));
+
             let content_slot = entity_content_hash_key(entity_key);
             state_changes.insert(meta_slot, U256::ZERO);
             state_changes.insert(content_slot, U256::ZERO);
         }
 
         if !state_changes.is_empty() {
+            // Each entity produces 2 entries (meta_slot + content_slot)
+            let expired_slots =
+                (state_changes.len() as u64 / 2) * crate::slot_counter::SLOTS_PER_ENTITY;
+
             commit_storage_changes(self.inner.evm_mut(), &state_changes);
+            update_slot_counter(self.inner.evm_mut(), -(expired_slots.cast_signed()))?;
         }
 
         Ok(())
     }
+}
+
+fn update_slot_counter<E: Evm<DB: DatabaseCommit + revm::Database<Error: core::fmt::Display>>>(
+    evm: &mut E,
+    delta: i64,
+) -> Result<(), BlockExecutionError> {
+    use crate::slot_counter::used_slots_key;
+    use revm::Database as _;
+
+    if delta == 0 {
+        return Ok(());
+    }
+
+    let counter_slot = used_slots_key();
+    let current = evm
+        .db_mut()
+        .storage(PROCESSOR_ADDRESS, U256::from_be_bytes(counter_slot.0))
+        .map_err(|e| mote_err(format!("counter read: {e}")))?;
+
+    let new_value = if delta > 0 {
+        current.saturating_add(U256::from(delta.cast_unsigned()))
+    } else {
+        current.saturating_sub(U256::from((-delta).cast_unsigned()))
+    };
+
+    commit_storage_changes(evm, &HashMap::from([(counter_slot, new_value)]));
+    Ok(())
 }
 
 fn commit_storage_changes<E: Evm<DB: DatabaseCommit>>(evm: &mut E, changes: &HashMap<B256, U256>) {

@@ -1,10 +1,11 @@
 use alloy_primitives::B256;
 use std::collections::HashMap;
 
-/// Not persisted — rebuilt from event logs on cold start.
+/// Not persisted - rebuilt from event logs on cold start.
 #[derive(Debug, Default)]
 pub struct ExpirationIndex {
     index: HashMap<u64, Vec<B256>>,
+    last_drained: Option<u64>,
 }
 
 impl ExpirationIndex {
@@ -16,7 +17,6 @@ impl ExpirationIndex {
         self.index.entry(block_number).or_default().push(entity_key);
     }
 
-    /// Called on delete/update to cancel a pending expiration.
     pub fn remove(&mut self, block_number: u64, entity_key: &B256) {
         if let Some(keys) = self.index.get_mut(&block_number) {
             keys.retain(|k| k != entity_key);
@@ -32,14 +32,27 @@ impl ExpirationIndex {
 
     /// Sorted for deterministic consensus ordering.
     pub fn drain_block(&mut self, block_number: u64) -> Vec<B256> {
+        self.last_drained = Some(block_number);
         let mut keys = self.index.remove(&block_number).unwrap_or_default();
         keys.sort();
         keys
     }
 
+    pub const fn last_drained_block(&self) -> Option<u64> {
+        self.last_drained
+    }
+
+    pub const fn reset_last_drained(&mut self) {
+        self.last_drained = None;
+    }
+
+    pub fn clear_range(&mut self, range: std::ops::RangeInclusive<u64>) {
+        self.index.retain(|block, _| !range.contains(block));
+    }
+
     /// Cold-start rebuild: scan the last `MAX_BTL` blocks of create/update/extend
     /// logs and repopulate the index. Caller must pre-filter to only alive
-    /// entities with their latest expiration — duplicates or stale entries here
+    /// entities with their latest expiration - duplicates or stale entries here
     /// are consensus bugs.
     pub fn rebuild_from_logs(&mut self, logs: impl Iterator<Item = (B256, u64)>) {
         for (entity_key, expires_at_block) in logs {
@@ -113,6 +126,45 @@ mod tests {
         idx.insert(100, key);
         idx.remove(100, &key);
         assert_eq!(idx.get_expired(100), None);
+    }
+
+    #[test]
+    fn clear_range_removes_blocks_in_range() {
+        let mut idx = ExpirationIndex::new();
+        idx.insert(100, B256::repeat_byte(0x01));
+        idx.insert(101, B256::repeat_byte(0x02));
+        idx.insert(102, B256::repeat_byte(0x03));
+        idx.insert(200, B256::repeat_byte(0x04));
+
+        idx.clear_range(100..=102);
+
+        assert_eq!(idx.get_expired(100), None);
+        assert_eq!(idx.get_expired(101), None);
+        assert_eq!(idx.get_expired(102), None);
+        assert_eq!(idx.get_expired(200).map(<[B256]>::len), Some(1));
+    }
+
+    #[test]
+    fn last_drained_block_tracks_highest_drain() {
+        let mut idx = ExpirationIndex::new();
+        assert_eq!(idx.last_drained_block(), None);
+
+        idx.insert(100, B256::repeat_byte(0x01));
+        idx.drain_block(100);
+        assert_eq!(idx.last_drained_block(), Some(100));
+
+        idx.insert(200, B256::repeat_byte(0x02));
+        idx.drain_block(200);
+        assert_eq!(idx.last_drained_block(), Some(200));
+    }
+
+    #[test]
+    fn reset_drained_clears_tracking() {
+        let mut idx = ExpirationIndex::new();
+        idx.insert(100, B256::repeat_byte(0x01));
+        idx.drain_block(100);
+        idx.reset_last_drained();
+        assert_eq!(idx.last_drained_block(), None);
     }
 
     #[test]
