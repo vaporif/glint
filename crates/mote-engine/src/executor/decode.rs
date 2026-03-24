@@ -1,11 +1,4 @@
-/// Raw byte slices into the original calldata, used as-is for content hashing
-/// so the hash stays deterministic across nodes.
-pub struct RawContentSlices<'a> {
-    pub payload_rlp: &'a [u8],
-    pub content_type_rlp: &'a [u8],
-    pub string_annotations_rlp: &'a [u8],
-    pub numeric_annotations_rlp: &'a [u8],
-}
+use crate::processor::RawContentSlices;
 
 pub struct DecodedMoteTransaction<'a> {
     pub tx: mote_primitives::transaction::MoteTransaction,

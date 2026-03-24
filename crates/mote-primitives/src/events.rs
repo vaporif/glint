@@ -1,5 +1,5 @@
-use alloy_primitives::{Address, B256, Bytes, Log};
-use alloy_sol_types::{SolEvent, sol};
+use alloy_primitives::{Address, Bytes, Log, B256};
+use alloy_sol_types::{sol, SolEvent};
 
 pub struct LogAnnotations {
     pub string_keys: Vec<String>,
@@ -84,8 +84,7 @@ impl EntityUpdated {
         address: Address,
         entity_key: B256,
         owner: Address,
-        old_expires_at: u64,
-        new_expires_at: u64,
+        expires_at: (u64, u64),
         content_type: String,
         payload: Bytes,
         annotations: LogAnnotations,
@@ -93,8 +92,8 @@ impl EntityUpdated {
         let event = Self {
             entity_key,
             owner,
-            old_expires_at,
-            new_expires_at,
+            old_expires_at: expires_at.0,
+            new_expires_at: expires_at.1,
             content_type,
             payload,
             string_annotation_keys: annotations.string_keys,
@@ -220,8 +219,7 @@ mod tests {
             Address::repeat_byte(0xFF),
             entity_key,
             owner,
-            10,
-            20,
+            (10, 20),
             "application/json".into(),
             Bytes::from_static(b"updated"),
             LogAnnotations {

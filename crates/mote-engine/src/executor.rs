@@ -43,7 +43,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-pub use decode::{DecodedMoteTransaction, RawContentSlices, decode_with_raw_slices};
+pub use decode::{DecodedMoteTransaction, decode_with_raw_slices};
 
 pub type SharedExpirationIndex = Arc<Mutex<ExpirationIndex>>;
 
