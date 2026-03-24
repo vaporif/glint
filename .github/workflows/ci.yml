@@ -22,6 +22,7 @@ jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v6
 
@@ -29,12 +30,18 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixpkgs-unstable
 
+      - uses: cachix/cachix-action@v17
+        with:
+          name: mote
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
       - name: Check
         run: nix flake check
 
   build:
     name: Nix build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -45,6 +52,11 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           nix_path: nixpkgs=channel:nixpkgs-unstable
+
+      - uses: cachix/cachix-action@v17
+        with:
+          name: mote
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: Nix build
         run: nix build

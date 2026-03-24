@@ -2,39 +2,39 @@ use crate::expiration::ExpirationIndex;
 
 use alloy_consensus::Transaction;
 use alloy_evm::{
+    Database, EthEvm, EthEvmFactory, FromRecoveredTx, FromTxWithEncoded, RecoveredTx,
     block::{BlockExecutionResult, BlockExecutorFactory, BlockExecutorFor, ExecutableTx},
     eth::{EthBlockExecutionCtx, EthBlockExecutor, EthTxResult},
     precompiles::PrecompilesMap,
-    Database, EthEvm, EthEvmFactory, FromRecoveredTx, FromTxWithEncoded, RecoveredTx,
 };
 use alloy_primitives::{B256, Log, U256};
-use reth_ethereum::network::types::Encodable2718;
 use mote_primitives::{
     constants::PROCESSOR_ADDRESS,
-    entity::{derive_entity_key, EntityMetadata},
+    entity::{EntityMetadata, derive_entity_key},
     events::{EntityCreated, EntityDeleted, EntityExtended, EntityUpdated},
     storage::{compute_content_hash_from_raw, entity_content_hash_key, entity_storage_key},
 };
+use reth_ethereum::network::types::Encodable2718;
 use reth_ethereum::{
+    Block, EthPrimitives, Receipt, TransactionSigned, TxType,
     chainspec::ChainSpec,
     evm::{
-        primitives::{
-            execute::{BlockExecutionError, BlockExecutor, InternalBlockExecutionError},
-            Evm, EvmEnv, EvmEnvFor, ExecutionCtxFor, NextBlockEnvAttributes, OnStateHook,
-        },
         EthBlockAssembler, EthEvmConfig, RethReceiptBuilder,
+        primitives::{
+            Evm, EvmEnv, EvmEnvFor, ExecutionCtxFor, NextBlockEnvAttributes, OnStateHook,
+            execute::{BlockExecutionError, BlockExecutor, InternalBlockExecutionError},
+        },
     },
     node::api::{ConfigureEngineEvm, ConfigureEvm, ExecutableTxIterator, FullNodeTypes, NodeTypes},
-    node::builder::{components::ExecutorBuilder, BuilderContext},
+    node::builder::{BuilderContext, components::ExecutorBuilder},
     primitives::{Header, SealedBlock, SealedHeader},
     rpc::types::engine::ExecutionData,
-    Block, EthPrimitives, Receipt, TransactionSigned, TxType,
 };
 use revm::{
+    DatabaseCommit, Inspector,
     context::result::{ExecutionResult, ResultAndState},
     database::State,
     state::{Account, AccountStatus, EvmStorageSlot},
-    DatabaseCommit, Inspector,
 };
 use std::{
     collections::HashMap,
@@ -61,7 +61,7 @@ where
 {
     type EVM = MoteEvmConfig;
 
-    async fn build_evm(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::EVM> {
+    async fn build_evm(self, ctx: &BuilderContext<Node>) -> color_eyre::Result<Self::EVM> {
         Ok(MoteEvmConfig {
             inner: EthEvmConfig::new(ctx.chain_spec()),
             expiration_index: self.expiration_index,
@@ -154,10 +154,7 @@ impl ConfigureEvm for MoteEvmConfig {
 }
 
 impl ConfigureEngineEvm<ExecutionData> for MoteEvmConfig {
-    fn evm_env_for_payload(
-        &self,
-        payload: &ExecutionData,
-    ) -> Result<EvmEnvFor<Self>, Self::Error> {
+    fn evm_env_for_payload(&self, payload: &ExecutionData) -> Result<EvmEnvFor<Self>, Self::Error> {
         self.inner.evm_env_for_payload(payload)
     }
 
@@ -191,9 +188,9 @@ impl<'db, DB, E> BlockExecutor for MoteBlockExecutor<'_, E>
 where
     DB: Database + 'db,
     E: Evm<
-        DB = &'db mut State<DB>,
-        Tx: FromRecoveredTx<TransactionSigned> + FromTxWithEncoded<TransactionSigned>,
-    >,
+            DB = &'db mut State<DB>,
+            Tx: FromRecoveredTx<TransactionSigned> + FromTxWithEncoded<TransactionSigned>,
+        >,
 {
     type Transaction = TransactionSigned;
     type Receipt = Receipt;
@@ -277,9 +274,9 @@ impl<'db, DB, E> MoteBlockExecutor<'_, E>
 where
     DB: Database + 'db,
     E: Evm<
-        DB = &'db mut State<DB>,
-        Tx: FromRecoveredTx<TransactionSigned> + FromTxWithEncoded<TransactionSigned>,
-    >,
+            DB = &'db mut State<DB>,
+            Tx: FromRecoveredTx<TransactionSigned> + FromTxWithEncoded<TransactionSigned>,
+        >,
 {
     fn execute_mote_crud(
         &mut self,
@@ -292,11 +289,10 @@ where
 
         let current_block: u64 = self.inner.evm().block().number().saturating_to();
 
-        let decoded = decode_with_raw_slices(calldata)
-            .map_err(|e| mote_err(format!("RLP decode: {e}")))?;
+        let decoded =
+            decode_with_raw_slices(calldata).map_err(|e| mote_err(format!("RLP decode: {e}")))?;
 
-        validate_transaction(&decoded.tx)
-            .map_err(|e| mote_err(format!("validation: {e}")))?;
+        validate_transaction(&decoded.tx).map_err(|e| mote_err(format!("validation: {e}")))?;
 
         let mut logs = Vec::new();
         let mut gas_used = 0u64;
@@ -347,7 +343,6 @@ where
         }
 
         for (update, slices) in decoded.tx.updates.iter().zip(&decoded.update_slices) {
-
             let old_meta = self.read_entity_metadata(&update.entity_key)?;
             if old_meta.owner != sender {
                 return Err(mote_err("sender is not the entity owner"));
@@ -407,10 +402,7 @@ where
             state_changes.insert(meta_slot, U256::ZERO);
             state_changes.insert(content_slot, U256::ZERO);
 
-            exp_changes.push(ExpirationChange::Remove(
-                meta.expires_at_block,
-                *entity_key,
-            ));
+            exp_changes.push(ExpirationChange::Remove(meta.expires_at_block, *entity_key));
 
             logs.push(EntityDeleted::new_log(
                 PROCESSOR_ADDRESS,

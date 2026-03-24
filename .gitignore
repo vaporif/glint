@@ -24,3 +24,6 @@ lcov.info
 *.iml
 *.code-workspace
 .vscode
+
+result
+.direnv

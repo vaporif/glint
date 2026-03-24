@@ -43,4 +43,4 @@ revm-state = { version = "9.0.0", default-features = false }
 
 regex = "1"
 thiserror = "2"
-eyre = "0.6"
+color-eyre = "0.6"
