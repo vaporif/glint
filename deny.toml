@@ -27,6 +27,7 @@ allow = [
     "BlueOak-1.0.0",
     "0BSD",
     "CDLA-Permissive-2.0",
+    "bzip2-1.0.6",
 ]
 
 [bans]
