@@ -69,11 +69,8 @@ where
 
     async fn build_evm(self, ctx: &BuilderContext<Node>) -> color_eyre::Result<Self::EVM> {
         let tip_block = ctx.head().number;
-        let expiration_index = crate::recovery::rebuild_expiration_index(
-            ctx.provider(),
-            &self.config,
-            tip_block,
-        )?;
+        let expiration_index =
+            crate::recovery::rebuild_expiration_index(ctx.provider(), &self.config, tip_block)?;
         let shared_index = Arc::new(Mutex::new(expiration_index));
 
         Ok(MoteEvmConfig {
