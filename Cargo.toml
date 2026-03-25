@@ -40,6 +40,8 @@ alloy-rlp = { version = "0.3", features = ["derive"] }
 alloy-sol-types = "1.5"
 alloy-consensus = "1.7"
 alloy-eips = "1.7"
+
+# version used by reth
 alloy-evm = "0.27"
 
 reth-ethereum = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.11.3", features = ["node", "node-api", "evm", "cli"] }

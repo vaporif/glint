@@ -307,8 +307,25 @@ where
         self.inner.commit_transaction(output)
     }
 
-    fn finish(self) -> Result<(Self::Evm, BlockExecutionResult<Receipt>), BlockExecutionError> {
-        // Empty blocks drop expiration logs - BlockExecutionResult has no logs field.
+    fn finish(mut self) -> Result<(Self::Evm, BlockExecutionResult<Receipt>), BlockExecutionError> {
+        if !self.pending_logs.is_empty() {
+            let logs = std::mem::take(&mut self.pending_logs);
+            let result = ResultAndState {
+                result: ExecutionResult::Success {
+                    reason: revm::context::result::SuccessReason::Stop,
+                    gas_used: 0,
+                    gas_refunded: 0,
+                    logs,
+                    output: revm::context::result::Output::Call(alloy_primitives::Bytes::new()),
+                },
+                state: HashMap::default(),
+            };
+            self.inner.commit_transaction(EthTxResult {
+                result,
+                blob_gas_used: 0,
+                tx_type: TxType::Legacy,
+            })?;
+        }
         self.inner.finish()
     }
 
@@ -484,4 +501,147 @@ fn commit_storage_changes<E: Evm<DB: DatabaseCommit>>(evm: &mut E, changes: &Has
 
 fn mote_err(msg: impl Into<Box<dyn core::error::Error + Send + Sync>>) -> BlockExecutionError {
     BlockExecutionError::Internal(InternalBlockExecutionError::Other(msg.into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_consensus::TxReceipt;
+    use alloy_evm::eth::EthEvmBuilder;
+    use alloy_primitives::Address;
+    use mote_primitives::entity::EntityMetadata;
+    use reth_ethereum::chainspec::MAINNET;
+    use revm::database::CacheDB;
+
+    const TEST_BLOCK: u64 = 1000;
+
+    fn test_evm_config(expiration_index: ExpirationIndex) -> MoteEvmConfig {
+        MoteEvmConfig {
+            inner: EthEvmConfig::new(MAINNET.clone()),
+            expiration_index: Arc::new(Mutex::new(expiration_index)),
+            config: MoteChainConfig::default(),
+        }
+    }
+
+    fn seed_entity(
+        db: &mut CacheDB<revm::database::EmptyDB>,
+        entity_key: &B256,
+        owner: Address,
+        expires_at: u64,
+    ) {
+        let meta = EntityMetadata {
+            owner,
+            expires_at_block: expires_at,
+        };
+        let meta_slot = entity_storage_key(entity_key);
+        let content_slot = entity_content_hash_key(entity_key);
+
+        let account = db
+            .cache
+            .accounts
+            .entry(PROCESSOR_ADDRESS)
+            .or_insert_with(|| revm::database::DbAccount {
+                info: AccountInfo::default(),
+                ..Default::default()
+            });
+        account.storage.insert(
+            U256::from_be_bytes(meta_slot.0),
+            U256::from_be_bytes(meta.encode()),
+        );
+        account
+            .storage
+            .insert(U256::from_be_bytes(content_slot.0), U256::from(0xDEADu64));
+    }
+
+    #[test]
+    fn finish_emits_system_receipt_for_expiration_logs() {
+        let entity_key = B256::repeat_byte(0x01);
+        let owner = Address::repeat_byte(0x42);
+
+        let mut exp_idx = ExpirationIndex::new();
+        exp_idx.insert(TEST_BLOCK, entity_key);
+        let config = test_evm_config(exp_idx);
+
+        let mut db = CacheDB::new(revm::database::EmptyDB::default());
+        seed_entity(&mut db, &entity_key, owner, TEST_BLOCK);
+        let mut state = State::builder()
+            .with_database(db)
+            .with_bundle_update()
+            .build();
+
+        let mut block_env = revm::context::BlockEnv::default();
+        block_env.number = U256::from(TEST_BLOCK);
+
+        let env = EvmEnv {
+            block_env,
+            cfg_env: revm::context::CfgEnv::default(),
+        };
+        let evm = EthEvmBuilder::new(&mut state, env).build();
+
+        let ctx = EthBlockExecutionCtx {
+            parent_hash: B256::ZERO,
+            parent_beacon_block_root: None,
+            ommers: &[],
+            withdrawals: None,
+            extra_data: alloy_primitives::Bytes::new(),
+            tx_count_hint: None,
+        };
+
+        let mut executor = BlockExecutorFactory::create_executor(&config, evm, ctx);
+
+        executor.apply_pre_execution_changes().unwrap();
+
+        let (_evm, result) = executor.finish().unwrap();
+
+        assert_eq!(
+            result.receipts.len(),
+            1,
+            "expected one system receipt for expiration logs"
+        );
+        let receipt = &result.receipts[0];
+        assert!(receipt.status(), "system receipt should be successful");
+        assert!(
+            !receipt.logs().is_empty(),
+            "system receipt should contain EntityExpired logs"
+        );
+    }
+
+    #[test]
+    fn finish_no_receipt_when_no_expirations() {
+        let config = test_evm_config(ExpirationIndex::new());
+
+        let mut state = State::builder()
+            .with_database(CacheDB::new(revm::database::EmptyDB::default()))
+            .with_bundle_update()
+            .build();
+
+        let mut block_env = revm::context::BlockEnv::default();
+        block_env.number = U256::from(TEST_BLOCK);
+
+        let env = EvmEnv {
+            block_env,
+            cfg_env: revm::context::CfgEnv::default(),
+        };
+        let evm = EthEvmBuilder::new(&mut state, env).build();
+
+        let ctx = EthBlockExecutionCtx {
+            parent_hash: B256::ZERO,
+            parent_beacon_block_root: None,
+            ommers: &[],
+            withdrawals: None,
+            extra_data: alloy_primitives::Bytes::new(),
+            tx_count_hint: None,
+        };
+
+        let mut executor = BlockExecutorFactory::create_executor(&config, evm, ctx);
+
+        executor.apply_pre_execution_changes().unwrap();
+
+        let (_evm, result) = executor.finish().unwrap();
+
+        assert!(
+            result.receipts.is_empty(),
+            "no receipts expected when nothing expires"
+        );
+    }
 }
