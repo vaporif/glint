@@ -5951,11 +5951,13 @@ name = "mote-engine"
 version = "0.1.0"
 dependencies = [
  "alloy-consensus",
+ "alloy-eips",
  "alloy-evm",
  "alloy-primitives",
  "alloy-rlp",
  "alloy-sol-types",
  "color-eyre",
+ "eyre",
  "mote-primitives",
  "reth-ethereum",
  "reth-evm",
@@ -5965,6 +5967,7 @@ dependencies = [
  "reth-trie",
  "revm",
  "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]
@@ -5974,7 +5977,6 @@ dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-primitives",
- "alloy-sol-types",
  "arrow",
  "borsh",
  "eyre",
@@ -5991,14 +5993,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "mote-node"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "clap",
+ "eyre",
+ "mote-engine",
+ "mote-exex",
+ "mote-primitives",
+ "reth-ethereum",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "mote-primitives"
 version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "alloy-sol-types",
+ "eyre",
  "regex",
+ "serde",
+ "serde_json",
  "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]

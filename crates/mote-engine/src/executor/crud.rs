@@ -266,7 +266,7 @@ where
                 .expires_at_block
                 .saturating_add(extend.additional_blocks);
 
-            let max_expires = current_block + mote_primitives::constants::MAX_BTL;
+            let max_expires = current_block + self.config.max_btl;
             if new_expires > max_expires {
                 return Err(mote_err("extend would exceed MAX_BTL from current block"));
             }

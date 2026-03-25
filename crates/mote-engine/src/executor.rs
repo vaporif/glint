@@ -12,6 +12,7 @@ use alloy_evm::{
 };
 use alloy_primitives::{B256, Log, U256};
 use mote_primitives::{
+    config::MoteChainConfig,
     constants::PROCESSOR_ADDRESS,
     entity::EntityMetadata,
     storage::{entity_content_hash_key, entity_storage_key},
@@ -49,12 +50,12 @@ pub type SharedExpirationIndex = Arc<Mutex<ExpirationIndex>>;
 
 #[derive(Debug, Clone)]
 pub struct MoteExecutorBuilder {
-    expiration_index: SharedExpirationIndex,
+    config: MoteChainConfig,
 }
 
 impl MoteExecutorBuilder {
-    pub const fn new(expiration_index: SharedExpirationIndex) -> Self {
-        Self { expiration_index }
+    pub const fn new(config: MoteChainConfig) -> Self {
+        Self { config }
     }
 }
 
@@ -62,13 +63,23 @@ impl<Types, Node> ExecutorBuilder<Node> for MoteExecutorBuilder
 where
     Types: NodeTypes<ChainSpec = ChainSpec, Primitives = EthPrimitives>,
     Node: FullNodeTypes<Types = Types>,
+    Node::Provider: reth_provider::ReceiptProvider,
 {
     type EVM = MoteEvmConfig;
 
     async fn build_evm(self, ctx: &BuilderContext<Node>) -> color_eyre::Result<Self::EVM> {
+        let tip_block = ctx.head().number;
+        let expiration_index = crate::recovery::rebuild_expiration_index(
+            ctx.provider(),
+            &self.config,
+            tip_block,
+        )?;
+        let shared_index = Arc::new(Mutex::new(expiration_index));
+
         Ok(MoteEvmConfig {
             inner: EthEvmConfig::new(ctx.chain_spec()),
-            expiration_index: self.expiration_index,
+            expiration_index: shared_index,
+            config: self.config,
         })
     }
 }
@@ -77,6 +88,7 @@ where
 pub struct MoteEvmConfig {
     inner: EthEvmConfig,
     expiration_index: SharedExpirationIndex,
+    config: MoteChainConfig,
 }
 
 impl BlockExecutorFactory for MoteEvmConfig {
@@ -106,6 +118,7 @@ impl BlockExecutorFactory for MoteEvmConfig {
                 self.inner.executor_factory.receipt_builder(),
             ),
             expiration_index: self.expiration_index.clone(),
+            config: self.config.clone(),
             pending_logs: Vec::new(),
         }
     }
@@ -180,6 +193,7 @@ impl ConfigureEngineEvm<ExecutionData> for MoteEvmConfig {
 pub struct MoteBlockExecutor<'a, Evm> {
     inner: EthBlockExecutor<'a, Evm, &'a Arc<ChainSpec>, &'a RethReceiptBuilder>,
     expiration_index: SharedExpirationIndex,
+    config: MoteChainConfig,
     pending_logs: Vec<Log>,
 }
 

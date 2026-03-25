@@ -17,6 +17,7 @@ mote-primitives.workspace = true
 alloy-primitives = { workspace = true }
 alloy-rlp = { workspace = true }
 alloy-consensus = { workspace = true }
+alloy-eips = { workspace = true }
 alloy-evm = { workspace = true }
 alloy-sol-types = { workspace = true }
 revm = { workspace = true }
@@ -26,5 +27,7 @@ reth-execution-types = { workspace = true }
 reth-provider = { workspace = true }
 reth-trie = { workspace = true }
 reth-node-builder = { workspace = true }
-thiserror = { workspace = true }
 color-eyre = { workspace = true }
+eyre = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

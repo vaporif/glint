@@ -2,7 +2,7 @@ use std::sync::{Arc, LazyLock};
 
 use arrow::array::{
     ArrayRef, BinaryBuilder, FixedSizeBinaryBuilder, MapBuilder, MapFieldNames, StringBuilder,
-    UInt8Builder, UInt32Builder, UInt64Builder,
+    UInt32Builder, UInt64Builder, UInt8Builder,
 };
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
@@ -10,7 +10,7 @@ use arrow::record_batch::RecordBatch;
 use alloy_primitives::B256;
 use mote_primitives::exex_types::{BatchOp, EntityEventType};
 
-use crate::parse::EntityEvent;
+use mote_primitives::parse::EntityEvent;
 
 #[derive(Debug, Clone)]
 pub struct EventRow {
@@ -324,8 +324,7 @@ fn append_numeric_annotations(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parse::EntityEvent;
-    use alloy_primitives::{Address, B256, Bytes};
+    use alloy_primitives::{Address, Bytes, B256};
     use mote_primitives::exex_types::BatchOp;
 
     fn sample_created() -> EntityEvent {

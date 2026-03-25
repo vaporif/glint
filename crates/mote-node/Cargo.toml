@@ -1,0 +1,40 @@
+[package]
+name = "mote-node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Mote node binary: reth + ephemeral entity storage"
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+name = "mote_node"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mote-node"
+path = "src/main.rs"
+
+[dependencies]
+mote-primitives.workspace = true
+mote-engine = { path = "../mote-engine" }
+mote-exex = { path = "../mote-exex" }
+
+reth-ethereum.workspace = true
+
+alloy-primitives.workspace = true
+
+clap.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+eyre.workspace = true
+
+[dev-dependencies]
+alloy-primitives = { workspace = true }
+tokio = { workspace = true, features = ["full", "test-util"] }
+
+[lints]
+workspace = true

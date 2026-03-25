@@ -1,7 +1,6 @@
 use alloy_primitives::{Address, B256, U256};
 use mote_primitives::{
-    constants::MAX_BTL,
-    entity::{EntityKey, EntityMetadata, derive_entity_key},
+    entity::{derive_entity_key, EntityKey, EntityMetadata},
     error::MoteError,
     storage::{compute_content_hash_from_raw, entity_content_hash_key, entity_storage_key},
 };
@@ -125,13 +124,14 @@ pub fn execute_extend(
     state: &mut impl EntityState,
     extend: &mote_primitives::transaction::Extend,
     current_block: u64,
+    max_btl: u64,
 ) -> Result<(EntityMetadata, u64), MoteError> {
     let old_meta = read_metadata(state, &extend.entity_key)?;
     let new_expires = old_meta
         .expires_at_block
         .saturating_add(extend.additional_blocks);
 
-    let max_expires = current_block + MAX_BTL;
+    let max_expires = current_block + max_btl;
     if new_expires > max_expires {
         return Err(MoteError::ExceedsMaxBtl);
     }
@@ -150,6 +150,7 @@ pub fn execute_extend(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mote_primitives::constants::MAX_BTL;
     use mote_primitives::transaction::{Create, Extend};
     use std::collections::HashMap;
 
@@ -280,7 +281,7 @@ mod tests {
             additional_blocks: 50,
         };
 
-        let result = execute_extend(&mut state, &extend, current_block);
+        let result = execute_extend(&mut state, &extend, current_block, MAX_BTL);
         assert!(result.is_ok());
         let (old_meta, new_expires) = result.unwrap();
         assert_eq!(old_meta.expires_at_block, 1100);
@@ -306,7 +307,7 @@ mod tests {
             additional_blocks: 11,
         };
 
-        let result = execute_extend(&mut state, &extend, current_block);
+        let result = execute_extend(&mut state, &extend, current_block, MAX_BTL);
         assert_eq!(result, Err(MoteError::ExceedsMaxBtl));
     }
 
@@ -329,7 +330,34 @@ mod tests {
             additional_blocks: 50,
         };
 
-        let result = execute_extend(&mut state, &extend, current_block);
+        let result = execute_extend(&mut state, &extend, current_block, MAX_BTL);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn execute_extend_respects_custom_max_btl() {
+        let mut state = MockState::default();
+        let entity_key = B256::repeat_byte(0x01);
+        let owner = Address::repeat_byte(0x42);
+        let current_block = 1000;
+        let custom_max_btl: u64 = 500;
+
+        let meta = EntityMetadata {
+            owner,
+            expires_at_block: current_block + custom_max_btl - 10,
+        };
+        let meta_slot = entity_storage_key(&entity_key);
+        state.write_slot(meta_slot, U256::from_be_bytes(meta.encode()));
+
+        let extend = Extend {
+            entity_key,
+            additional_blocks: 11,
+        };
+
+        let result = execute_extend(&mut state, &extend, current_block, custom_max_btl);
+        assert_eq!(result, Err(MoteError::ExceedsMaxBtl));
+
+        let result = execute_extend(&mut state, &extend, current_block, MAX_BTL);
         assert!(result.is_ok());
     }
 }
