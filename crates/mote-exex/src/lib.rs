@@ -234,8 +234,6 @@ fn process_reverted_chain<N: reth_primitives_traits::NodePrimitives>(
 ) {
     let tip_block = chain.tip().header().number();
 
-    // Revert delivery is correctness-critical — missed reverts leave the consumer
-    // with corrupt state, so any try_send failure force-disconnects.
     #[allow(clippy::needless_collect)]
     let blocks: Vec<_> = chain.blocks_and_receipts().collect();
     let mut revert_failed = false;
@@ -341,8 +339,6 @@ fn try_send_batch(
         Err(mpsc::error::TrySendError::Full(_)) => {
             // TODO: metrics
             if replay_in_progress {
-                // Suppress backpressure disconnect during replay — batches are
-                // dropped but remain in the ring buffer for future snapshots
                 debug!("batch channel full during replay, suppressing disconnect");
             } else {
                 debug!("batch channel full, applying backpressure");

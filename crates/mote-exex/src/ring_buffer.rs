@@ -1,8 +1,8 @@
 use alloy_eips::BlockNumHash;
 use arrow::record_batch::RecordBatch;
 use std::collections::VecDeque;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use mote_primitives::constants::MAX_BTL;
 
@@ -230,7 +230,6 @@ mod tests {
                 dummy_batch(10),
             );
         }
-        // approximate, ~20% overshoot allowed (eviction happens after push, not before)
         assert!(rb.memory_usage() <= 1000 + 5000);
     }
 

@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, B256, Bytes, Log};
+use alloy_primitives::{Address, Bytes, Log, B256};
 use alloy_sol_types::SolEvent;
 use mote_primitives::constants::PROCESSOR_ADDRESS;
 use mote_primitives::events::{
@@ -45,7 +45,7 @@ pub enum EntityEvent {
     },
 }
 
-#[must_use = "discarding a parse result silently loses events"]
+#[must_use]
 pub fn parse_log(log: &Log) -> eyre::Result<Option<EntityEvent>> {
     if log.address != PROCESSOR_ADDRESS {
         return Ok(None);
@@ -145,7 +145,7 @@ fn validate_annotations(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::{Address, B256, Bytes};
+    use alloy_primitives::{Address, Bytes, B256};
     use mote_primitives::constants::PROCESSOR_ADDRESS;
     use mote_primitives::events::{
         EntityCreated, EntityDeleted, EntityExpired, EntityExtended, EntityUpdated, LogAnnotations,
