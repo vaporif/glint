@@ -1,0 +1,29 @@
+[package]
+name = "mote-node-eth"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Mote Ethereum node binary"
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "mote-node-eth"
+path = "src/main.rs"
+
+[dependencies]
+mote-engine = { path = "../../crates/mote-engine" }
+mote-exex = { path = "../../crates/mote-exex" }
+mote-node = { path = "../../crates/mote-node" }
+
+reth-ethereum.workspace = true
+
+clap.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

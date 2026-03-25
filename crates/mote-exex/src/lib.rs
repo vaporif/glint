@@ -1,5 +1,4 @@
 pub mod arrow;
-pub mod parse;
 pub mod ring_buffer;
 pub mod stream;
 
@@ -19,8 +18,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 use crate::arrow::EventRow;
-use crate::parse::parse_log;
 use crate::stream::SnapshotRequest;
+use mote_primitives::parse::parse_log;
 
 const BATCH_CHANNEL_SIZE: usize = 1024;
 const SNAPSHOT_CHANNEL_SIZE: usize = 1;

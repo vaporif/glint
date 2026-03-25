@@ -1,0 +1,31 @@
+[package]
+name = "mote-node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Mote node shared library: CLI args and genesis config extraction"
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+name = "mote_node"
+path = "src/lib.rs"
+
+[dependencies]
+mote-primitives.workspace = true
+
+clap.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+eyre.workspace = true
+
+[dev-dependencies]
+mote-engine = { path = "../mote-engine" }
+alloy-primitives = { workspace = true }
+tokio = { workspace = true, features = ["full", "test-util"] }
+
+[lints]
+workspace = true

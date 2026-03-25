@@ -1,10 +1,9 @@
 use alloy_primitives::{Address, B256, Bytes, Log};
 use alloy_sol_types::SolEvent;
-use mote_primitives::constants::PROCESSOR_ADDRESS;
-use mote_primitives::events::{
-    EntityCreated, EntityDeleted, EntityExpired, EntityExtended, EntityUpdated,
-};
 use tracing::warn;
+
+use crate::constants::PROCESSOR_ADDRESS;
+use crate::events::{EntityCreated, EntityDeleted, EntityExpired, EntityExtended, EntityUpdated};
 
 #[derive(Debug, Clone)]
 pub enum EntityEvent {
@@ -149,8 +148,9 @@ fn validate_annotations(
 mod tests {
     use super::*;
     use alloy_primitives::{Address, B256, Bytes};
-    use mote_primitives::constants::PROCESSOR_ADDRESS;
-    use mote_primitives::events::{
+
+    use crate::constants::PROCESSOR_ADDRESS;
+    use crate::events::{
         EntityCreated, EntityDeleted, EntityExpired, EntityExtended, EntityUpdated, LogAnnotations,
     };
 

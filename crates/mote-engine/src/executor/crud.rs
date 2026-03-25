@@ -1,5 +1,3 @@
-use alloy_evm::block::BlockExecutor as _;
-use alloy_evm::{Database, FromRecoveredTx, FromTxWithEncoded};
 use alloy_primitives::{B256, Log, U256};
 use mote_primitives::{
     constants::PROCESSOR_ADDRESS,
@@ -7,13 +5,12 @@ use mote_primitives::{
     events::{EntityCreated, EntityDeleted, EntityExtended, EntityUpdated, LogAnnotations},
     storage::{compute_content_hash_from_raw, entity_content_hash_key, entity_storage_key},
 };
-use reth_ethereum::TransactionSigned;
-use reth_ethereum::evm::primitives::{Evm, execute::BlockExecutionError};
-use revm::database::State;
+use reth_evm::{Evm, block::BlockExecutionError};
+use revm::DatabaseCommit;
 use std::collections::HashMap;
 
 use super::decode::{DecodedMoteTransaction, decode_with_raw_slices};
-use super::{MoteBlockExecutor, commit_storage_changes, mote_err};
+use super::{MoteBlockExecutor, MoteResultBuilder, commit_storage_changes, mote_err};
 
 use super::{
     GAS_PER_BTL_BLOCK, GAS_PER_DATA_BYTE, MOTE_GAS_PER_CREATE, MOTE_GAS_PER_DELETE,
@@ -34,13 +31,17 @@ pub(super) struct CrudAccumulator {
     pub(super) slot_counter_delta: i64,
 }
 
-impl<'db, DB, E> MoteBlockExecutor<'_, E>
+impl<InnerExec, RB> MoteBlockExecutor<InnerExec, RB>
 where
-    DB: Database + 'db,
-    E: Evm<
-            DB = &'db mut State<DB>,
-            Tx: FromRecoveredTx<TransactionSigned> + FromTxWithEncoded<TransactionSigned>,
-        >,
+    InnerExec: reth_evm::block::BlockExecutor<
+        Transaction: super::MoteTransaction,
+        Receipt: alloy_consensus::TxReceipt<Log = Log>,
+    >,
+    InnerExec::Evm: Evm<DB: revm::Database<Error: core::fmt::Display> + DatabaseCommit>,
+    RB: MoteResultBuilder<
+        Result = InnerExec::Result,
+        TxType = <<InnerExec as reth_evm::block::BlockExecutor>::Transaction as alloy_consensus::TransactionEnvelope>::TxType,
+    >,
 {
     pub(super) fn execute_mote_crud(
         &mut self,
@@ -266,7 +267,7 @@ where
                 .expires_at_block
                 .saturating_add(extend.additional_blocks);
 
-            let max_expires = current_block + mote_primitives::constants::MAX_BTL;
+            let max_expires = current_block + self.config.max_btl;
             if new_expires > max_expires {
                 return Err(mote_err("extend would exceed MAX_BTL from current block"));
             }
