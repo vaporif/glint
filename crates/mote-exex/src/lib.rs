@@ -93,15 +93,14 @@ async fn mote_exex<Node: reth_node_api::FullNodeComponents>(
             }
 
             maybe_notification = ctx.notifications.next() => {
-                let Some(notification) = maybe_notification else {
-                    info!("notification stream ended");
-                    break;
-                };
-
-                let notification = match notification {
-                    Ok(n) => n,
-                    Err(e) => {
+                let notification = match maybe_notification {
+                    Some(Ok(n)) => n,
+                    Some(Err(e)) => {
                         error!(?e, "notification stream error");
+                        break;
+                    }
+                    None => {
+                        info!("notification stream ended");
                         break;
                     }
                 };
