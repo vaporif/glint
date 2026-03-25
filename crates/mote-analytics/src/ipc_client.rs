@@ -55,6 +55,7 @@ pub async fn connect_and_subscribe(
 pub fn read_batches(
     stream: std::os::unix::net::UnixStream,
 ) -> eyre::Result<impl Iterator<Item = eyre::Result<RecordBatch>>> {
-    let reader = StreamReader::try_new(stream, None).wrap_err("creating Arrow IPC stream reader")?;
+    let reader =
+        StreamReader::try_new(stream, None).wrap_err("creating Arrow IPC stream reader")?;
     Ok(reader.map(|r| r.map_err(|e| eyre::eyre!(e))))
 }

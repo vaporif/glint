@@ -103,19 +103,13 @@ impl EntityStore {
         let mut content_type_b = StringBuilder::with_capacity(n, n * 16);
         let mut payload_b = BinaryBuilder::with_capacity(n, n * 64);
 
-        let ann_field_names = || MapFieldNames {
-            entry: "entries".to_string(),
-            key: "key".to_string(),
-            value: "value".to_string(),
-        };
-
         let mut string_ann_b = MapBuilder::new(
-            Some(ann_field_names()),
+            Some(map_field_names()),
             StringBuilder::new(),
             StringBuilder::new(),
         );
         let mut numeric_ann_b = MapBuilder::new(
-            Some(ann_field_names()),
+            Some(map_field_names()),
             StringBuilder::new(),
             UInt64Builder::new(),
         );
@@ -169,6 +163,14 @@ impl EntityStore {
         ];
 
         RecordBatch::try_new(entity_schema(), columns).expect("columns must match entity schema")
+    }
+}
+
+fn map_field_names() -> MapFieldNames {
+    MapFieldNames {
+        entry: "entries".to_owned(),
+        key: "key".to_owned(),
+        value: "value".to_owned(),
     }
 }
 

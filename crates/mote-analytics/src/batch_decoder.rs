@@ -1,16 +1,16 @@
-use alloy_primitives::{Address, Bytes, B256};
-use arrow::{
-    array::{
-        Array, AsArray, BinaryArray, FixedSizeBinaryArray, MapArray, StringArray, UInt64Array,
-        UInt8Array,
-    },
-    record_batch::RecordBatch,
-};
+mod columns;
+
+use alloy_primitives::Bytes;
+use arrow::record_batch::RecordBatch;
 use eyre::WrapErr;
 use mote_primitives::exex_types::{BatchOp, EntityEventType};
 use tracing::warn;
 
 use crate::entity_store::{EntityRow, EntityStore};
+use columns::{
+    addr_from_fsb, b256_from_fsb, col_binary, col_fsb, col_map, col_string, col_u8, col_u64,
+    decode_numeric_map, decode_string_map,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ApplyResult {
@@ -67,7 +67,7 @@ fn apply_commit(store: &mut EntityStore, batch: &RecordBatch, nrows: usize) -> e
         let block_number = block_number_col.value(i);
 
         match event_type {
-            EntityEventType::Created => {
+            EntityEventType::Created | EntityEventType::Updated => {
                 let owner = addr_from_fsb(owner_col, i);
                 let expires_at_block = expires_col.value(i);
                 let content_type = content_type_col.value(i).to_owned();
@@ -75,29 +75,13 @@ fn apply_commit(store: &mut EntityStore, batch: &RecordBatch, nrows: usize) -> e
                 let string_annotations = decode_string_map(str_ann_col, i)?;
                 let numeric_annotations = decode_numeric_map(num_ann_col, i)?;
 
-                store.insert(EntityRow {
-                    entity_key,
-                    owner,
-                    expires_at_block,
-                    content_type,
-                    payload,
-                    string_annotations,
-                    numeric_annotations,
-                    created_at_block: block_number,
-                    tx_hash,
-                });
-            }
-            EntityEventType::Updated => {
-                let owner = addr_from_fsb(owner_col, i);
-                let expires_at_block = expires_col.value(i);
-                let content_type = content_type_col.value(i).to_owned();
-                let payload = Bytes::copy_from_slice(payload_col.value(i));
-                let string_annotations = decode_string_map(str_ann_col, i)?;
-                let numeric_annotations = decode_numeric_map(num_ann_col, i)?;
-
-                let created_at_block = store
-                    .get(&entity_key)
-                    .map_or(block_number, |r| r.created_at_block);
+                let created_at_block = if event_type == EntityEventType::Created {
+                    block_number
+                } else {
+                    store
+                        .get(&entity_key)
+                        .map_or(block_number, |r| r.created_at_block)
+                };
 
                 store.insert(EntityRow {
                     entity_key,
@@ -175,119 +159,16 @@ pub fn batch_block_number(batch: &RecordBatch) -> Option<u64> {
     col_u64(batch, "block_number").ok().map(|col| col.value(0))
 }
 
-fn col_u8<'a>(batch: &'a RecordBatch, name: &str) -> eyre::Result<&'a UInt8Array> {
-    batch
-        .column_by_name(name)
-        .ok_or_else(|| eyre::eyre!("missing column: {name}"))?
-        .as_any()
-        .downcast_ref::<UInt8Array>()
-        .ok_or_else(|| eyre::eyre!("column {name} is not UInt8Array"))
-}
-
-fn col_u64<'a>(batch: &'a RecordBatch, name: &str) -> eyre::Result<&'a UInt64Array> {
-    batch
-        .column_by_name(name)
-        .ok_or_else(|| eyre::eyre!("missing column: {name}"))?
-        .as_any()
-        .downcast_ref::<UInt64Array>()
-        .ok_or_else(|| eyre::eyre!("column {name} is not UInt64Array"))
-}
-
-fn col_fsb<'a>(batch: &'a RecordBatch, name: &str) -> eyre::Result<&'a FixedSizeBinaryArray> {
-    batch
-        .column_by_name(name)
-        .ok_or_else(|| eyre::eyre!("missing column: {name}"))?
-        .as_any()
-        .downcast_ref::<FixedSizeBinaryArray>()
-        .ok_or_else(|| eyre::eyre!("column {name} is not FixedSizeBinaryArray"))
-}
-
-fn col_string<'a>(batch: &'a RecordBatch, name: &str) -> eyre::Result<&'a StringArray> {
-    batch
-        .column_by_name(name)
-        .ok_or_else(|| eyre::eyre!("missing column: {name}"))?
-        .as_any()
-        .downcast_ref::<StringArray>()
-        .ok_or_else(|| eyre::eyre!("column {name} is not StringArray"))
-}
-
-fn col_binary<'a>(batch: &'a RecordBatch, name: &str) -> eyre::Result<&'a BinaryArray> {
-    batch
-        .column_by_name(name)
-        .ok_or_else(|| eyre::eyre!("missing column: {name}"))?
-        .as_any()
-        .downcast_ref::<BinaryArray>()
-        .ok_or_else(|| eyre::eyre!("column {name} is not BinaryArray"))
-}
-
-fn col_map<'a>(batch: &'a RecordBatch, name: &str) -> eyre::Result<&'a MapArray> {
-    batch
-        .column_by_name(name)
-        .ok_or_else(|| eyre::eyre!("missing column: {name}"))?
-        .as_map_opt()
-        .ok_or_else(|| eyre::eyre!("column {name} is not MapArray"))
-}
-
-fn b256_from_fsb(col: &FixedSizeBinaryArray, i: usize) -> B256 {
-    B256::from_slice(col.value(i))
-}
-
-fn addr_from_fsb(col: &FixedSizeBinaryArray, i: usize) -> Address {
-    Address::from_slice(col.value(i))
-}
-
-fn decode_string_map(col: &MapArray, i: usize) -> eyre::Result<Vec<(String, String)>> {
-    if col.is_null(i) {
-        return Ok(Vec::new());
-    }
-
-    let offsets = col.value_offsets();
-    let start = usize::try_from(offsets[i]).wrap_err("negative string_annotations offset")?;
-    let end = usize::try_from(offsets[i + 1]).wrap_err("negative string_annotations offset")?;
-
-    if start == end {
-        return Ok(Vec::new());
-    }
-
-    let keys = col.keys().as_string::<i32>();
-    let values = col.values().as_string::<i32>();
-
-    Ok((start..end)
-        .map(|j| (keys.value(j).to_owned(), values.value(j).to_owned()))
-        .collect())
-}
-
-fn decode_numeric_map(col: &MapArray, i: usize) -> eyre::Result<Vec<(String, u64)>> {
-    if col.is_null(i) {
-        return Ok(Vec::new());
-    }
-
-    let offsets = col.value_offsets();
-    let start = usize::try_from(offsets[i]).wrap_err("negative numeric_annotations offset")?;
-    let end = usize::try_from(offsets[i + 1]).wrap_err("negative numeric_annotations offset")?;
-
-    if start == end {
-        return Ok(Vec::new());
-    }
-
-    let keys = col.keys().as_string::<i32>();
-    let values = col.values().as_primitive::<arrow::datatypes::UInt64Type>();
-
-    Ok((start..end)
-        .map(|j| (keys.value(j).to_owned(), values.value(j)))
-        .collect())
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
-    use alloy_primitives::{Address, Bytes, B256};
+    use alloy_primitives::{Address, B256, Bytes};
     use arrow::{
         array::{
+            ArrayRef, BinaryBuilder, FixedSizeBinaryBuilder, StringBuilder, UInt8Builder,
+            UInt32Builder, UInt64Builder,
             builder::{MapBuilder, MapFieldNames},
-            ArrayRef, BinaryBuilder, FixedSizeBinaryBuilder, StringBuilder, UInt32Builder,
-            UInt64Builder, UInt8Builder,
         },
         datatypes::{DataType, Field, Schema},
         record_batch::RecordBatch,

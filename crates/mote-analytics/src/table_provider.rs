@@ -150,8 +150,10 @@ impl ScalarUDFImpl for StrAnnUdf {
 
         for row in 0..n {
             let lookup_key = key_array.value(row);
-            let start = offsets[row].cast_unsigned() as usize;
-            let end = offsets[row + 1].cast_unsigned() as usize;
+            let start = usize::try_from(offsets[row])
+                .map_err(|e| datafusion::common::DataFusionError::Execution(e.to_string()))?;
+            let end = usize::try_from(offsets[row + 1])
+                .map_err(|e| datafusion::common::DataFusionError::Execution(e.to_string()))?;
 
             let found = (start..end).find_map(|i| {
                 if map_keys.value(i) == lookup_key {
@@ -252,8 +254,10 @@ impl ScalarUDFImpl for NumAnnUdf {
 
         for row in 0..n {
             let lookup_key = key_array.value(row);
-            let start = offsets[row].cast_unsigned() as usize;
-            let end = offsets[row + 1].cast_unsigned() as usize;
+            let start = usize::try_from(offsets[row])
+                .map_err(|e| datafusion::common::DataFusionError::Execution(e.to_string()))?;
+            let end = usize::try_from(offsets[row + 1])
+                .map_err(|e| datafusion::common::DataFusionError::Execution(e.to_string()))?;
 
             let found = (start..end).find_map(|i| {
                 if map_keys.value(i) == lookup_key {
