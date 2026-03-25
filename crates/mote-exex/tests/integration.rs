@@ -167,7 +167,8 @@ async fn full_subscribe_and_replay() {
         .write_all(&subscribe_msg(0))
         .expect("subscribe write should succeed");
 
-    let read_handle = tokio::task::spawn_blocking(move || {
+    let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+    std::thread::spawn(move || {
         let reader =
             StreamReader::try_new(&std_client, None).expect("StreamReader creation should succeed");
         let mut batches = Vec::new();
@@ -182,7 +183,7 @@ async fn full_subscribe_and_replay() {
                 Err(_) => break,
             }
         }
-        batches
+        let _ = done_tx.send(batches);
     });
 
     let snap_req = timeout(Duration::from_secs(5), harness.snapshot_rx.recv())
@@ -205,6 +206,11 @@ async fn full_subscribe_and_replay() {
         .send(())
         .expect("replay_done_tx send should succeed");
 
+    // Wait for the server to finish replay and enter the live stream loop.
+    // The server drains batch_rx after receiving the snapshot reply, so sending
+    // a live batch too early would cause it to be discarded.
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
     let live_bnh = BlockNumHash::new(20, B256::repeat_byte(20));
     harness
         .batch_tx
@@ -212,10 +218,10 @@ async fn full_subscribe_and_replay() {
         .await
         .expect("batch_tx send should succeed");
 
-    let batches = timeout(Duration::from_secs(30), read_handle)
+    let batches = timeout(Duration::from_secs(10), done_rx)
         .await
         .expect("read should complete within timeout")
-        .expect("spawn_blocking should succeed");
+        .expect("reader thread should send result");
 
     assert!(
         batches.len() >= 3,
