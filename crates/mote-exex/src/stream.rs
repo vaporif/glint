@@ -397,13 +397,13 @@ async fn stream_live(
             }
         };
 
-        let sent = match writer_tx.try_send(batch) {
+        match writer_tx.try_send(batch) {
             Ok(()) => {
                 // TODO: metrics
                 grace.reset();
-                true
             }
-            Err(mpsc::error::TrySendError::Full(batch)) => {
+            Err(mpsc::error::TrySendError::Full(_)) => {
+                // TODO: metrics
                 grace.record_failure();
                 if grace.should_disconnect {
                     warn!("backpressure threshold reached, disconnecting consumer");
@@ -411,18 +411,14 @@ async fn stream_live(
                     shutdown_writer(writer_tx, write_handle).await;
                     return Ok(());
                 }
-                if writer_tx.send(batch).await.is_err() {
-                    return Ok(());
-                }
-                true
             }
             Err(mpsc::error::TrySendError::Closed(_)) => {
                 warn!("writer channel closed, consumer disconnected");
                 return Ok(());
             }
-        };
+        }
 
-        if sent && let Some(bnh) = maybe_bnh {
+        if let Some(bnh) = maybe_bnh {
             current_tip = bnh.number;
             let _ = delivered_tx.send(Some(bnh));
         }

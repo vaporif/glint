@@ -4,6 +4,7 @@ use mote_primitives::constants::PROCESSOR_ADDRESS;
 use mote_primitives::events::{
     EntityCreated, EntityDeleted, EntityExpired, EntityExtended, EntityUpdated,
 };
+use tracing::warn;
 
 #[derive(Debug, Clone)]
 pub enum EntityEvent {
@@ -120,7 +121,10 @@ pub fn parse_log(log: &Log) -> eyre::Result<Option<EntityEvent>> {
                 new_expires_at: d.new_expires_at,
             }))
         }
-        _ => Ok(None),
+        _ => {
+            warn!(?selector, "unknown event selector, skipping log");
+            Ok(None)
+        }
     }
 }
 

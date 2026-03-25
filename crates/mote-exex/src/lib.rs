@@ -162,10 +162,10 @@ async fn mote_exex<Node: reth_node_api::FullNodeComponents>(
             }
 
             Some(result) = OptionFuture::from(pending_replay_done_rx.as_mut().map(|rx| &mut *rx)) => {
+                pending_replay_done_rx = None;
                 if result.is_ok() {
                     replay_in_progress = false;
                 }
-                pending_replay_done_rx = None;
             }
 
             () = cancellation_token.cancelled() => {
@@ -281,9 +281,8 @@ fn process_reverted_chain<N: reth_primitives_traits::NodePrimitives>(
         grace.force_disconnect();
     }
 
-    let first_reverted = chain.blocks_iter().next().map(|b| b.header().number());
-    if let Some(reorg_start) = first_reverted {
-        ring_buffer.truncate_from(reorg_start);
+    if let Some(first) = chain.blocks_iter().next() {
+        ring_buffer.truncate_from(first.header().number());
     }
 }
 
