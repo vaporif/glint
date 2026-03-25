@@ -58,7 +58,7 @@ pub fn parse_log(log: &Log) -> eyre::Result<Option<EntityEvent>> {
 
     match selector {
         s if s == EntityCreated::SIGNATURE_HASH => {
-            let d = EntityCreated::decode_log_data(&log.data)?;
+            let d = EntityCreated::decode_log(log)?.data;
             validate_annotations(
                 &d.string_annotation_keys,
                 &d.string_annotation_values,
@@ -78,7 +78,7 @@ pub fn parse_log(log: &Log) -> eyre::Result<Option<EntityEvent>> {
             }))
         }
         s if s == EntityUpdated::SIGNATURE_HASH => {
-            let d = EntityUpdated::decode_log_data(&log.data)?;
+            let d = EntityUpdated::decode_log(log)?.data;
             validate_annotations(
                 &d.string_annotation_keys,
                 &d.string_annotation_values,
@@ -99,21 +99,21 @@ pub fn parse_log(log: &Log) -> eyre::Result<Option<EntityEvent>> {
             }))
         }
         s if s == EntityDeleted::SIGNATURE_HASH => {
-            let d = EntityDeleted::decode_log_data(&log.data)?;
+            let d = EntityDeleted::decode_log(log)?.data;
             Ok(Some(EntityEvent::Deleted {
                 entity_key: d.entity_key,
                 owner: d.owner,
             }))
         }
         s if s == EntityExpired::SIGNATURE_HASH => {
-            let d = EntityExpired::decode_log_data(&log.data)?;
+            let d = EntityExpired::decode_log(log)?.data;
             Ok(Some(EntityEvent::Expired {
                 entity_key: d.entity_key,
                 owner: d.owner,
             }))
         }
         s if s == EntityExtended::SIGNATURE_HASH => {
-            let d = EntityExtended::decode_log_data(&log.data)?;
+            let d = EntityExtended::decode_log(log)?.data;
             Ok(Some(EntityEvent::Extended {
                 entity_key: d.entity_key,
                 old_expires_at: d.old_expires_at,

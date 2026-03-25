@@ -198,6 +198,10 @@ fn process_committed_chain<N: reth_primitives_traits::NodePrimitives>(
 
         let events = collect_events_from_receipts(receipts, transactions);
 
+        if events.is_empty() {
+            continue;
+        }
+
         match crate::arrow::build_record_batch(
             block_number,
             block_hash,
@@ -244,6 +248,10 @@ fn process_reverted_chain<N: reth_primitives_traits::NodePrimitives>(
         let transactions = block.body().transactions();
 
         let events = collect_events_from_receipts(receipts, transactions);
+
+        if events.is_empty() {
+            continue;
+        }
 
         match crate::arrow::build_record_batch(
             block_number,
