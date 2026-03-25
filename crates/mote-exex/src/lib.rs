@@ -217,7 +217,7 @@ fn process_committed_chain<N: reth_primitives_traits::NodePrimitives>(
                 );
             }
             Err(e) => {
-                // TODO: metrics::counter!("mote_exex_decode_errors_total").increment(1);
+                // TODO: metrics
                 error!(block_number, ?e, "failed to build commit record batch");
             }
         }
@@ -260,11 +260,11 @@ fn process_reverted_chain<N: reth_primitives_traits::NodePrimitives>(
                     && batch_tx.try_send((None, batch)).is_err()
                 {
                     revert_failed = true;
-                    // TODO: metrics::counter!("mote_exex_batches_dropped_total").increment(1);
+                    // TODO: metrics
                 }
             }
             Err(e) => {
-                // TODO: metrics::counter!("mote_exex_decode_errors_total").increment(1);
+                // TODO: metrics
                 error!(block_number, ?e, "failed to build revert record batch");
             }
         }
@@ -272,7 +272,7 @@ fn process_reverted_chain<N: reth_primitives_traits::NodePrimitives>(
 
     if revert_failed {
         warn!("revert delivery failed, disconnecting consumer (corrupt state)");
-        // TODO: metrics::counter!("mote_exex_consumer_disconnects_total").increment(1);
+        // TODO: metrics
         grace.force_disconnect();
     }
 
@@ -310,7 +310,7 @@ where
                 }
                 Ok(None) => {}
                 Err(e) => {
-                    // TODO: metrics::counter!("mote_exex_decode_errors_total").increment(1);
+                    // TODO: metrics
                     warn!(tx_index = tx_idx, ?e, "failed to parse log");
                 }
             }
@@ -335,11 +335,11 @@ fn try_send_batch(
 
     match batch_tx.try_send((bnh, batch)) {
         Ok(()) => {
-            // TODO: metrics::counter!("mote_exex_batches_sent_total").increment(1);
+            // TODO: metrics
             grace.reset();
         }
         Err(mpsc::error::TrySendError::Full(_)) => {
-            // TODO: metrics::counter!("mote_exex_batches_dropped_total").increment(1);
+            // TODO: metrics
             if replay_in_progress {
                 // Suppress backpressure disconnect during replay — batches are
                 // dropped but remain in the ring buffer for future snapshots
@@ -348,7 +348,7 @@ fn try_send_batch(
                 debug!("batch channel full, applying backpressure");
                 grace.record_failure();
                 if grace.should_disconnect {
-                    // TODO: metrics::counter!("mote_exex_consumer_disconnects_total").increment(1);
+                    // TODO: metrics
                     warn!("backpressure threshold exceeded in notification loop");
                 }
             }

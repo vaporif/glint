@@ -175,7 +175,7 @@ pub async fn socket_writer_task(
         }
 
         consumer_connected.store(false, Ordering::Release);
-        // TODO: metrics::gauge!("mote_exex_consumer_connected").set(0);
+        // TODO: metrics
     }
 
     let _ = std::fs::remove_file(&socket_path);
@@ -209,7 +209,7 @@ async fn handle_connection(
         }
         ClientMessage::Subscribe { resume_block } => {
             consumer_connected.store(true, Ordering::Release);
-            // TODO: metrics::gauge!("mote_exex_consumer_connected").set(1);
+            // TODO: metrics
 
             let oldest = rb_stats.oldest.load(Ordering::Relaxed);
             let tip = rb_stats.tip.load(Ordering::Relaxed);
@@ -399,7 +399,7 @@ async fn stream_live(
 
         let sent = match writer_tx.try_send(batch) {
             Ok(()) => {
-                // TODO: metrics::counter!("mote_exex_batches_sent_total").increment(1);
+                // TODO: metrics
                 grace.reset();
                 true
             }
@@ -407,7 +407,7 @@ async fn stream_live(
                 grace.record_failure();
                 if grace.should_disconnect {
                     warn!("backpressure threshold reached, disconnecting consumer");
-                    // TODO: metrics::counter!("mote_exex_consumer_disconnects_total").increment(1);
+                    // TODO: metrics
                     shutdown_writer(writer_tx, write_handle).await;
                     return Ok(());
                 }
