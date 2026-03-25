@@ -2,7 +2,7 @@ use std::sync::{Arc, LazyLock};
 
 use arrow::array::{
     ArrayRef, BinaryBuilder, FixedSizeBinaryBuilder, MapBuilder, MapFieldNames, StringBuilder,
-    UInt32Builder, UInt64Builder, UInt8Builder,
+    UInt8Builder, UInt32Builder, UInt64Builder,
 };
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
@@ -325,7 +325,7 @@ fn append_numeric_annotations(
 mod tests {
     use super::*;
     use crate::parse::EntityEvent;
-    use alloy_primitives::{Address, Bytes, B256};
+    use alloy_primitives::{Address, B256, Bytes};
     use mote_primitives::exex_types::BatchOp;
 
     fn sample_created() -> EntityEvent {
@@ -358,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_has_expected_columns() {
+    fn schema_column_count() {
         let schema = entity_events_schema();
         assert_eq!(schema.fields().len(), 16);
         assert!(schema.field_with_name("block_number").is_ok());
@@ -380,7 +380,7 @@ mod tests {
     }
 
     #[test]
-    fn build_batch_single_created_event() {
+    fn single_created_roundtrip() {
         let events = vec![EventRow {
             event: sample_created(),
             tx_index: 0,
@@ -400,7 +400,7 @@ mod tests {
     }
 
     #[test]
-    fn build_batch_mixed_events() {
+    fn mixed_event_types() {
         let events = vec![
             EventRow {
                 event: sample_created(),
@@ -433,7 +433,7 @@ mod tests {
     }
 
     #[test]
-    fn extended_event_has_null_owner() {
+    fn extended_nulls_owner() {
         let events = vec![EventRow {
             event: sample_extended(),
             tx_index: 0,
@@ -446,7 +446,7 @@ mod tests {
     }
 
     #[test]
-    fn deleted_event_has_null_expiration_and_payload() {
+    fn deleted_nulls_optional_fields() {
         let events = vec![EventRow {
             event: sample_deleted(),
             tx_index: 0,
@@ -460,7 +460,7 @@ mod tests {
     }
 
     #[test]
-    fn watermark_batch_has_sentinel_op() {
+    fn watermark_op_is_0xff() {
         let batch = build_watermark_batch(5000).unwrap();
         assert_eq!(batch.num_rows(), 1);
         let op_col = batch

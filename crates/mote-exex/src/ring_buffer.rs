@@ -1,8 +1,8 @@
 use alloy_eips::BlockNumHash;
 use arrow::record_batch::RecordBatch;
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use mote_primitives::constants::MAX_BTL;
 

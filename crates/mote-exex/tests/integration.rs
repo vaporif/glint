@@ -155,22 +155,15 @@ async fn full_subscribe_and_replay() {
     let mut harness = TestHarness::spawn();
     harness.wait_for_socket().await;
 
-    let client = UnixStream::connect(&harness.socket_path)
-        .await
-        .expect("connect should succeed");
-    let std_client = client.into_std().expect("into_std");
-    std_client
-        .set_nonblocking(false)
-        .expect("set blocking mode");
+    let client = UnixStream::connect(&harness.socket_path).await.unwrap();
+    let std_client = client.into_std().unwrap();
+    std_client.set_nonblocking(false).unwrap();
 
-    (&std_client)
-        .write_all(&subscribe_msg(0))
-        .expect("subscribe write should succeed");
+    (&std_client).write_all(&subscribe_msg(0)).unwrap();
 
     let (done_tx, done_rx) = tokio::sync::oneshot::channel();
     std::thread::spawn(move || {
-        let reader =
-            StreamReader::try_new(&std_client, None).expect("StreamReader creation should succeed");
+        let reader = StreamReader::try_new(&std_client, None).unwrap();
         let mut batches = Vec::new();
         for batch_result in reader {
             match batch_result {
@@ -188,8 +181,8 @@ async fn full_subscribe_and_replay() {
 
     let snap_req = timeout(Duration::from_secs(5), harness.snapshot_rx.recv())
         .await
-        .expect("snapshot request should arrive within timeout")
-        .expect("snapshot channel should not be closed");
+        .expect("snapshot request timed out")
+        .unwrap();
 
     assert_eq!(snap_req.resume_block, 0);
 
@@ -199,12 +192,9 @@ async fn full_subscribe_and_replay() {
     snap_req
         .reply_tx
         .send(vec![(snapshot_bnh, snapshot_batch)])
-        .expect("reply_tx send should succeed");
+        .unwrap();
 
-    snap_req
-        .replay_done_tx
-        .send(())
-        .expect("replay_done_tx send should succeed");
+    snap_req.replay_done_tx.send(()).unwrap();
 
     // Wait for the server to finish replay and enter the live stream loop.
     // The server drains batch_rx after receiving the snapshot reply, so sending
@@ -216,12 +206,12 @@ async fn full_subscribe_and_replay() {
         .batch_tx
         .send((Some(live_bnh), make_test_batch(20)))
         .await
-        .expect("batch_tx send should succeed");
+        .unwrap();
 
     let batches = timeout(Duration::from_secs(10), done_rx)
         .await
-        .expect("read should complete within timeout")
-        .expect("reader thread should send result");
+        .expect("timed out waiting for reader")
+        .unwrap();
 
     assert!(
         batches.len() >= 3,
@@ -241,20 +231,15 @@ async fn probe_returns_json_status() {
     let harness = TestHarness::spawn();
     harness.wait_for_socket().await;
 
-    let mut client = UnixStream::connect(&harness.socket_path)
-        .await
-        .expect("connect should succeed");
+    let mut client = UnixStream::connect(&harness.socket_path).await.unwrap();
 
-    client
-        .write_all(&[0x00])
-        .await
-        .expect("probe write should succeed");
+    client.write_all(&[0x00]).await.unwrap();
 
     let mut len_buf = [0u8; 4];
     timeout(Duration::from_secs(5), client.read_exact(&mut len_buf))
         .await
-        .expect("length read should complete within timeout")
-        .expect("length read should succeed");
+        .expect("timed out reading length")
+        .unwrap();
     let json_len = u32::from_le_bytes(len_buf) as usize;
     assert!(json_len > 0, "JSON payload should not be empty");
     assert!(
@@ -265,11 +250,10 @@ async fn probe_returns_json_status() {
     let mut json_buf = vec![0u8; json_len];
     timeout(Duration::from_secs(5), client.read_exact(&mut json_buf))
         .await
-        .expect("json read should complete within timeout")
-        .expect("json read should succeed");
+        .expect("timed out reading json")
+        .unwrap();
 
-    let value: serde_json::Value =
-        serde_json::from_slice(&json_buf).expect("payload should be valid JSON");
+    let value: serde_json::Value = serde_json::from_slice(&json_buf).unwrap();
 
     assert_eq!(value["protocol_version"], 1);
     assert_eq!(value["ring_buffer_entries"], 42);
@@ -280,14 +264,11 @@ async fn probe_returns_json_status() {
     let mut trailing = [0u8; 1];
     let n = timeout(Duration::from_secs(2), client.read(&mut trailing))
         .await
-        .expect("trailing read should complete within timeout")
-        .expect("trailing read should succeed");
-    assert_eq!(n, 0, "connection should be closed after probe");
+        .unwrap()
+        .unwrap();
+    assert_eq!(n, 0, "connection not closed after probe");
 
-    assert!(
-        !harness.consumer_connected.load(Ordering::Acquire),
-        "consumer_connected should be false after probe"
-    );
+    assert!(!harness.consumer_connected.load(Ordering::Acquire));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -295,28 +276,26 @@ async fn unknown_message_returns_error_byte() {
     let harness = TestHarness::spawn();
     harness.wait_for_socket().await;
 
-    let mut client = UnixStream::connect(&harness.socket_path)
-        .await
-        .expect("connect should succeed");
+    let mut client = UnixStream::connect(&harness.socket_path).await.unwrap();
 
     let mut buf = Vec::with_capacity(9);
     buf.push(0xFE);
     buf.extend_from_slice(&0u64.to_le_bytes());
-    client.write_all(&buf).await.expect("write should succeed");
+    client.write_all(&buf).await.unwrap();
 
     let mut response = [0u8; 1];
     timeout(Duration::from_secs(5), client.read_exact(&mut response))
         .await
-        .expect("read should complete within timeout")
-        .expect("read should succeed");
-    assert_eq!(response[0], 0xFF, "should receive 0xFF error byte");
+        .expect("timed out")
+        .unwrap();
+    assert_eq!(response[0], 0xFF);
 
     let mut trailing = [0u8; 1];
     let n = timeout(Duration::from_secs(2), client.read(&mut trailing))
         .await
-        .expect("trailing read should complete within timeout")
-        .expect("trailing read should succeed");
-    assert_eq!(n, 0, "connection should be closed after error");
+        .unwrap()
+        .unwrap();
+    assert_eq!(n, 0, "connection not closed after error");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -324,15 +303,11 @@ async fn cancellation_disconnects_consumer() {
     let mut harness = TestHarness::spawn();
     harness.wait_for_socket().await;
 
-    let client_a = UnixStream::connect(&harness.socket_path)
-        .await
-        .expect("connect A should succeed");
-    let std_a = client_a.into_std().expect("into_std A");
-    std_a.set_nonblocking(false).expect("set blocking A");
+    let client_a = UnixStream::connect(&harness.socket_path).await.unwrap();
+    let std_a = client_a.into_std().unwrap();
+    std_a.set_nonblocking(false).unwrap();
 
-    (&std_a)
-        .write_all(&subscribe_msg(0))
-        .expect("A handshake write should succeed");
+    (&std_a).write_all(&subscribe_msg(0)).unwrap();
 
     let _drain_a = tokio::task::spawn_blocking(move || {
         let mut buf = [0u8; 4096];
@@ -346,24 +321,15 @@ async fn cancellation_disconnects_consumer() {
 
     let snap_a = timeout(Duration::from_secs(5), harness.snapshot_rx.recv())
         .await
-        .expect("A snapshot request should arrive")
-        .expect("snapshot channel should not be closed");
-    snap_a
-        .reply_tx
-        .send(vec![])
-        .expect("A reply should succeed");
-    snap_a
-        .replay_done_tx
-        .send(())
-        .expect("A replay_done should succeed");
+        .expect("snapshot request timed out")
+        .unwrap();
+    snap_a.reply_tx.send(vec![]).unwrap();
+    snap_a.replay_done_tx.send(()).unwrap();
 
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     harness.cancellation_token.cancel();
 
     tokio::time::sleep(Duration::from_millis(200)).await;
-    assert!(
-        !harness.consumer_connected.load(Ordering::Acquire),
-        "consumer_connected should be false after cancel"
-    );
+    assert!(!harness.consumer_connected.load(Ordering::Acquire));
 }

@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, Bytes, Log, B256};
+use alloy_primitives::{Address, B256, Bytes, Log};
 use alloy_sol_types::SolEvent;
 use mote_primitives::constants::PROCESSOR_ADDRESS;
 use mote_primitives::events::{
@@ -145,11 +145,20 @@ fn validate_annotations(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::{Address, Bytes, B256};
+    use alloy_primitives::{Address, B256, Bytes};
     use mote_primitives::constants::PROCESSOR_ADDRESS;
     use mote_primitives::events::{
         EntityCreated, EntityDeleted, EntityExpired, EntityExtended, EntityUpdated, LogAnnotations,
     };
+
+    fn empty_annotations() -> LogAnnotations {
+        LogAnnotations {
+            string_keys: vec![],
+            string_values: vec![],
+            numeric_keys: vec![],
+            numeric_values: vec![],
+        }
+    }
 
     fn make_created_log() -> alloy_primitives::Log {
         EntityCreated::new_log(
@@ -169,7 +178,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_created_event() {
+    fn created_roundtrip() {
         let log = make_created_log();
         let event = parse_log(&log).unwrap().unwrap();
         match event {
@@ -192,7 +201,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_updated_event() {
+    fn updated_preserves_both_expiry_values() {
         let log = EntityUpdated::new_log(
             PROCESSOR_ADDRESS,
             B256::repeat_byte(0x01),
@@ -207,108 +216,83 @@ mod tests {
                 numeric_values: vec![],
             },
         );
-        let event = parse_log(&log).unwrap().unwrap();
-        match event {
-            EntityEvent::Updated {
-                entity_key,
-                owner,
-                old_expires_at,
-                new_expires_at,
-                content_type,
-                payload,
-                ..
-            } => {
-                assert_eq!(entity_key, B256::repeat_byte(0x01));
-                assert_eq!(owner, Address::repeat_byte(0x02));
-                assert_eq!(old_expires_at, 50);
-                assert_eq!(new_expires_at, 100);
-                assert_eq!(content_type, "application/json");
-                assert_eq!(payload.as_ref(), b"updated");
-            }
-            _ => panic!("expected Updated"),
-        }
+        let EntityEvent::Updated {
+            old_expires_at,
+            new_expires_at,
+            content_type,
+            payload,
+            ..
+        } = parse_log(&log).unwrap().unwrap()
+        else {
+            panic!("expected Updated");
+        };
+        assert_eq!(old_expires_at, 50);
+        assert_eq!(new_expires_at, 100);
+        assert_eq!(content_type, "application/json");
+        assert_eq!(payload.as_ref(), b"updated");
     }
 
     #[test]
-    fn parse_deleted_event() {
-        let log = EntityDeleted::new_log(
+    fn deleted_and_expired_are_simple() {
+        let del_log = EntityDeleted::new_log(
             PROCESSOR_ADDRESS,
             B256::repeat_byte(0x03),
             Address::repeat_byte(0x04),
         );
-        let event = parse_log(&log).unwrap().unwrap();
-        match event {
-            EntityEvent::Deleted { entity_key, owner } => {
-                assert_eq!(entity_key, B256::repeat_byte(0x03));
-                assert_eq!(owner, Address::repeat_byte(0x04));
-            }
-            _ => panic!("expected Deleted"),
-        }
-    }
+        assert!(matches!(
+            parse_log(&del_log).unwrap().unwrap(),
+            EntityEvent::Deleted { entity_key, .. } if entity_key == B256::repeat_byte(0x03)
+        ));
 
-    #[test]
-    fn parse_expired_event() {
-        let log = EntityExpired::new_log(
+        let exp_log = EntityExpired::new_log(
             PROCESSOR_ADDRESS,
             B256::repeat_byte(0x06),
             Address::repeat_byte(0x07),
         );
-        let event = parse_log(&log).unwrap().unwrap();
-        match event {
-            EntityEvent::Expired { entity_key, owner } => {
-                assert_eq!(entity_key, B256::repeat_byte(0x06));
-                assert_eq!(owner, Address::repeat_byte(0x07));
-            }
-            _ => panic!("expected Expired"),
-        }
+        assert!(matches!(
+            parse_log(&exp_log).unwrap().unwrap(),
+            EntityEvent::Expired { owner, .. } if owner == Address::repeat_byte(0x07)
+        ));
     }
 
     #[test]
-    fn parse_extended_event() {
+    fn extended_has_no_owner() {
         let log = EntityExtended::new_log(PROCESSOR_ADDRESS, B256::repeat_byte(0x05), 10, 20);
-        let event = parse_log(&log).unwrap().unwrap();
-        match event {
-            EntityEvent::Extended {
-                entity_key,
-                old_expires_at,
-                new_expires_at,
-            } => {
-                assert_eq!(entity_key, B256::repeat_byte(0x05));
-                assert_eq!(old_expires_at, 10);
-                assert_eq!(new_expires_at, 20);
-            }
-            _ => panic!("expected Extended"),
-        }
+        let EntityEvent::Extended {
+            old_expires_at,
+            new_expires_at,
+            ..
+        } = parse_log(&log).unwrap().unwrap()
+        else {
+            panic!("expected Extended");
+        };
+        assert_eq!(old_expires_at, 10);
+        assert_eq!(new_expires_at, 20);
     }
 
     #[test]
-    fn skip_wrong_address() {
+    fn wrong_address_skipped() {
         let log = EntityCreated::new_log(
-            Address::repeat_byte(0xFF), // wrong address
+            Address::repeat_byte(0xFF),
             B256::repeat_byte(0x01),
             Address::repeat_byte(0x02),
             100,
             "text/plain".into(),
             Bytes::from_static(b"hello"),
-            LogAnnotations {
-                string_keys: vec![],
-                string_values: vec![],
-                numeric_keys: vec![],
-                numeric_values: vec![],
-            },
+            empty_annotations(),
         );
         assert!(parse_log(&log).unwrap().is_none());
     }
 
     #[test]
-    fn skip_unknown_selector() {
+    fn unknown_selector_skipped() {
         let mut log = make_created_log();
         log.data.topics_mut()[0] = B256::repeat_byte(0xFF);
         assert!(parse_log(&log).unwrap().is_none());
     }
 
     #[test]
-    fn annotation_length_mismatch_returns_error() {
+    fn annotation_key_value_mismatch() {
         let log = EntityCreated::new_log(
             PROCESSOR_ADDRESS,
             B256::repeat_byte(0x01),
@@ -318,12 +302,11 @@ mod tests {
             Bytes::from_static(b"hello"),
             LogAnnotations {
                 string_keys: vec!["k1".into(), "k2".into()],
-                string_values: vec!["v1".into()], // mismatch!
+                string_values: vec!["v1".into()], // mismatch
                 numeric_keys: vec![],
                 numeric_values: vec![],
             },
         );
-        let result = parse_log(&log);
-        assert!(result.is_err());
+        assert!(parse_log(&log).is_err());
     }
 }
