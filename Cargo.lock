@@ -4451,13 +4451,18 @@ dependencies = [
  "alloy-provider",
  "alloy-signer-local",
  "alloy-transport-http",
+ "arrow",
+ "arrow-flight",
  "eyre",
+ "futures",
  "glint-primitives",
  "glint-sdk",
+ "prost",
  "reqwest 0.12.28",
  "serde_json",
  "tempfile",
  "tokio",
+ "tonic",
 ]
 
 [[package]]

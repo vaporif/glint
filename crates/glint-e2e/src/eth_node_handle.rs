@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::net::TcpListener;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
@@ -9,6 +9,7 @@ use tempfile::TempDir;
 pub struct EthNodeHandle {
     child: Child,
     rpc_url: String,
+    exex_socket: PathBuf,
     _datadir: TempDir,
     log_file: PathBuf,
 }
@@ -24,6 +25,7 @@ impl EthNodeHandle {
         let log_file = datadir.path().join("node-output.log");
         let stderr_file = File::create(&log_file)?;
         let stdout_file = stderr_file.try_clone()?;
+        let exex_socket = datadir.path().join("glint-exex.sock");
 
         let child = Command::new(&bin)
             .arg("node")
@@ -39,6 +41,8 @@ impl EthNodeHandle {
             .arg(datadir.path())
             .arg("--log.file.directory")
             .arg(datadir.path().join("logs"))
+            .arg("--glint.exex-socket-path")
+            .arg(&exex_socket)
             .arg("-vvvv")
             .stdout(Stdio::from(stdout_file))
             .stderr(Stdio::from(stderr_file))
@@ -47,6 +51,7 @@ impl EthNodeHandle {
         let mut handle = Self {
             child,
             rpc_url,
+            exex_socket,
             log_file,
             _datadir: datadir,
         };
@@ -57,6 +62,10 @@ impl EthNodeHandle {
 
     pub fn rpc_url(&self) -> &str {
         &self.rpc_url
+    }
+
+    pub fn exex_socket(&self) -> &Path {
+        &self.exex_socket
     }
 
     pub fn dump_logs(&self) -> String {

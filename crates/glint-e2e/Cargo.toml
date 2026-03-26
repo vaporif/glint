@@ -25,4 +25,10 @@ alloy-network.workspace = true
 alloy-signer-local.workspace = true
 alloy-transport-http.workspace = true
 
+arrow.workspace = true
+arrow-flight.workspace = true
+tonic.workspace = true
+futures.workspace = true
+prost = "0.14"
+
 tokio = { workspace = true, features = ["full"] }

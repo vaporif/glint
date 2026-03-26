@@ -50,5 +50,5 @@ run-analytics *args:
     cargo run -p glint-analytics -- {{args}}
 
 e2e:
-    cargo build --bin eth-glint
+    cargo build --bin eth-glint --bin glint-analytics
     cargo nextest run -p glint-e2e --run-ignored all
