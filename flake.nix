@@ -58,9 +58,18 @@
 
       cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
-      glint = craneLib.buildPackage (commonArgs
+      op-glint = craneLib.buildPackage (commonArgs
         // {
           inherit cargoArtifacts;
+          pname = "op-glint";
+          cargoExtraArgs = "--bin op-glint";
+        });
+
+      eth-glint = craneLib.buildPackage (commonArgs
+        // {
+          inherit cargoArtifacts;
+          pname = "eth-glint";
+          cargoExtraArgs = "--bin eth-glint";
         });
 
       toolchain = fenixPkgs.stable.withComponents [
@@ -73,7 +82,8 @@
       ];
     in {
       packages = {
-        default = glint;
+        inherit op-glint eth-glint;
+        default = op-glint;
       };
 
       checks = {

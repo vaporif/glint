@@ -11,7 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [[bin]]
-name = "glint-node-op"
+name = "op-glint"
 path = "src/main.rs"
 
 [dependencies]
