@@ -1,18 +1,16 @@
 mod crud;
 pub mod decode;
+mod eth;
+#[cfg(feature = "op")]
+mod op;
 
 use crate::expiration::ExpirationIndex;
 
 use alloy_consensus::{Transaction, TransactionEnvelope};
 use alloy_eips::Encodable2718 as _;
 use alloy_evm::{
-    Database, EvmFactory, RecoveredTx as _,
-    block::{BlockExecutionResult, BlockExecutorFactory, BlockExecutorFor, ExecutableTx, TxResult},
-    eth::{
-        EthBlockExecutionCtx, EthBlockExecutor, EthBlockExecutorFactory, EthTxResult,
-        receipt_builder::ReceiptBuilder, spec::EthExecutorSpec,
-    },
-    precompiles::PrecompilesMap,
+    RecoveredTx as _,
+    block::{BlockExecutionResult, BlockExecutorFactory, ExecutableTx, TxResult},
 };
 use alloy_primitives::{B256, Log, U256};
 use mote_primitives::{
@@ -23,14 +21,13 @@ use mote_primitives::{
 };
 use reth_evm::{
     ConfigureEngineEvm, ConfigureEvm, Evm, EvmEnvFor, ExecutableTxIterator, ExecutionCtxFor,
-    FromRecoveredTx, FromTxWithEncoded, OnStateHook,
+    OnStateHook,
     block::{BlockExecutionError, BlockExecutor, InternalBlockExecutionError},
 };
 use reth_primitives_traits::{BlockTy, HeaderTy, SealedBlock, SealedHeader};
 use revm::{
-    DatabaseCommit, Inspector,
+    DatabaseCommit,
     context::result::{ExecutionResult, ResultAndState},
-    database::State,
     state::{Account, AccountInfo, AccountStatus, EvmStorageSlot},
 };
 use std::{
@@ -41,6 +38,9 @@ use std::{
 };
 
 pub use decode::{DecodedMoteTransaction, decode_with_raw_slices};
+pub use eth::EthMoteResultBuilder;
+#[cfg(feature = "op")]
+pub use op::OpMoteResultBuilder;
 
 pub type SharedExpirationIndex = Arc<Mutex<ExpirationIndex>>;
 
@@ -66,24 +66,6 @@ pub trait MoteResultBuilder: Send + Sync + 'static {
         result: ResultAndState<Self::HaltReason>,
         tx_type: Self::TxType,
     ) -> Self::Result;
-}
-
-pub struct EthMoteResultBuilder<H, T>(PhantomData<(H, T)>);
-
-impl<H: Send + Sync + 'static, T: Default + Clone + Send + Sync + 'static> MoteResultBuilder
-    for EthMoteResultBuilder<H, T>
-{
-    type HaltReason = H;
-    type TxType = T;
-    type Result = EthTxResult<H, T>;
-
-    fn build_crud_result(result: ResultAndState<H>, tx_type: T) -> EthTxResult<H, T> {
-        EthTxResult {
-            result,
-            blob_gas_used: 0,
-            tx_type,
-        }
-    }
 }
 
 pub struct MoteEvmConfig<Inner: ConfigureEvm> {
@@ -136,128 +118,9 @@ where
 
 #[derive(Debug, Clone)]
 pub struct MoteBlockExecutorFactory<F> {
-    inner: F,
-    expiration_index: SharedExpirationIndex,
-    config: MoteChainConfig,
-}
-
-impl<R, Spec, EvmF> BlockExecutorFactory
-    for MoteBlockExecutorFactory<EthBlockExecutorFactory<R, Spec, EvmF>>
-where
-    R: ReceiptBuilder<Transaction: MoteTransaction, Receipt: alloy_consensus::TxReceipt<Log = Log>>
-        + 'static,
-    Spec: EthExecutorSpec + 'static,
-    EvmF: EvmFactory<
-            Tx: FromRecoveredTx<R::Transaction> + FromTxWithEncoded<R::Transaction>,
-            Precompiles = PrecompilesMap,
-        > + 'static,
-{
-    type EvmFactory = EvmF;
-    type ExecutionCtx<'a> = EthBlockExecutionCtx<'a>;
-    type Transaction = R::Transaction;
-    type Receipt = R::Receipt;
-
-    fn evm_factory(&self) -> &Self::EvmFactory {
-        self.inner.evm_factory()
-    }
-
-    fn create_executor<'a, DB, I>(
-        &'a self,
-        evm: EvmF::Evm<&'a mut State<DB>, I>,
-        ctx: EthBlockExecutionCtx<'a>,
-    ) -> impl BlockExecutorFor<'a, Self, DB, I>
-    where
-        DB: Database + 'a,
-        I: Inspector<EvmF::Context<&'a mut State<DB>>> + 'a,
-    {
-        let inner =
-            EthBlockExecutor::new(evm, ctx, self.inner.spec(), self.inner.receipt_builder());
-        MoteBlockExecutor::<_, EthMoteResultBuilder<_, _>> {
-            inner,
-            _rb: PhantomData,
-            expiration_index: self.expiration_index.clone(),
-            config: self.config.clone(),
-            pending_logs: Vec::new(),
-        }
-    }
-}
-
-#[cfg(feature = "op")]
-pub struct OpMoteResultBuilder<H, T>(PhantomData<(H, T)>);
-
-#[cfg(feature = "op")]
-impl<H: Send + Sync + 'static, T: Default + Clone + Send + Sync + 'static> MoteResultBuilder
-    for OpMoteResultBuilder<H, T>
-{
-    type HaltReason = H;
-    type TxType = T;
-    type Result = alloy_op_evm::block::OpTxResult<H, T>;
-
-    fn build_crud_result(
-        result: ResultAndState<H>,
-        tx_type: T,
-    ) -> alloy_op_evm::block::OpTxResult<H, T> {
-        alloy_op_evm::block::OpTxResult {
-            inner: EthTxResult {
-                result,
-                blob_gas_used: 0,
-                tx_type,
-            },
-            // CRUD results are system-processed; the real sender is in entity metadata
-            is_deposit: false,
-            sender: alloy_primitives::Address::ZERO,
-        }
-    }
-}
-
-#[cfg(feature = "op")]
-impl<R, Spec, EvmF> BlockExecutorFactory
-    for MoteBlockExecutorFactory<reth_optimism_evm::OpBlockExecutorFactory<R, Spec, EvmF>>
-where
-    R: alloy_op_evm::block::receipt_builder::OpReceiptBuilder<
-            Transaction: MoteTransaction,
-            Receipt: alloy_consensus::TxReceipt<Log = Log>,
-        > + 'static,
-    Spec: alloy_op_hardforks::OpHardforks + 'static,
-    EvmF: EvmFactory<
-            Tx: FromRecoveredTx<R::Transaction>
-                    + FromTxWithEncoded<R::Transaction>
-                    + alloy_op_evm::block::OpTxEnv,
-            Precompiles = PrecompilesMap,
-        > + 'static,
-{
-    type EvmFactory = EvmF;
-    type ExecutionCtx<'a> = reth_optimism_evm::OpBlockExecutionCtx;
-    type Transaction = R::Transaction;
-    type Receipt = R::Receipt;
-
-    fn evm_factory(&self) -> &Self::EvmFactory {
-        self.inner.evm_factory()
-    }
-
-    fn create_executor<'a, DB, I>(
-        &'a self,
-        evm: EvmF::Evm<&'a mut State<DB>, I>,
-        ctx: reth_optimism_evm::OpBlockExecutionCtx,
-    ) -> impl BlockExecutorFor<'a, Self, DB, I>
-    where
-        DB: Database + 'a,
-        I: Inspector<EvmF::Context<&'a mut State<DB>>> + 'a,
-    {
-        let inner = alloy_op_evm::block::OpBlockExecutor::new(
-            evm,
-            ctx,
-            self.inner.spec(),
-            self.inner.receipt_builder(),
-        );
-        MoteBlockExecutor::<_, OpMoteResultBuilder<_, _>> {
-            inner,
-            _rb: PhantomData,
-            expiration_index: self.expiration_index.clone(),
-            config: self.config.clone(),
-            pending_logs: Vec::new(),
-        }
-    }
+    pub(crate) inner: F,
+    pub(crate) expiration_index: SharedExpirationIndex,
+    pub(crate) config: MoteChainConfig,
 }
 
 impl<Inner: ConfigureEvm> ConfigureEvm for MoteEvmConfig<Inner>
@@ -656,14 +519,14 @@ fn mote_err(msg: impl Into<Box<dyn core::error::Error + Send + Sync>>) -> BlockE
 mod tests {
     use super::*;
     use alloy_consensus::TxReceipt;
-    use alloy_evm::eth::EthEvmBuilder;
+    use alloy_evm::eth::{EthBlockExecutionCtx, EthEvmBuilder};
     use alloy_primitives::Address;
     use mote_primitives::entity::EntityMetadata;
     use reth_ethereum::{
         chainspec::MAINNET,
         evm::{EthEvmConfig, primitives::EvmEnv},
     };
-    use revm::database::CacheDB;
+    use revm::database::{CacheDB, State};
 
     const TEST_BLOCK: u64 = 1000;
 
