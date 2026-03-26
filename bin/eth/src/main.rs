@@ -120,41 +120,57 @@ fn try_load_or_rebuild<P>(
 where
     P: reth_provider::ReceiptProvider + BlockHashReader,
 {
-    if let Some(path) = checkpoint_path
-        && path.exists()
-    {
-        match load_checkpoint(path) {
-            Ok((index, ckpt_tip, ckpt_hash)) => match provider.block_hash(ckpt_tip) {
-                Ok(Some(canonical_hash)) if canonical_hash == ckpt_hash => {
-                    info!(
-                        ckpt_tip,
-                        tip_block, "checkpoint valid, using partial rebuild"
-                    );
-                    return rebuild_expiration_index_partial(
-                        provider, config, tip_block, ckpt_tip, index,
-                    );
-                }
-                Ok(_) => {
-                    warn!(
-                        ckpt_tip,
-                        "checkpoint hash mismatch, falling back to full rebuild"
-                    );
-                }
-                Err(e) => {
-                    warn!(
-                        ?e,
-                        "failed to verify checkpoint hash, falling back to full rebuild"
-                    );
-                }
-            },
-            Err(e) => {
-                warn!(
-                    ?e,
-                    "failed to load checkpoint, falling back to full rebuild"
-                );
-            }
-        }
+    if let Some(index) = checkpoint_path.and_then(|p| try_load_checkpoint(provider, p, tip_block)) {
+        return rebuild_expiration_index_partial(provider, config, tip_block, index.1, index.0);
     }
 
     rebuild_expiration_index(provider, config, tip_block)
+}
+
+fn try_load_checkpoint<P>(
+    provider: &P,
+    path: &std::path::Path,
+    tip_block: u64,
+) -> Option<(ExpirationIndex, u64)>
+where
+    P: BlockHashReader,
+{
+    if !path.exists() {
+        return None;
+    }
+
+    let (index, ckpt_tip, ckpt_hash) = match load_checkpoint(path) {
+        Ok(v) => v,
+        Err(e) => {
+            warn!(
+                ?e,
+                "failed to load checkpoint, falling back to full rebuild"
+            );
+            return None;
+        }
+    };
+
+    match provider.block_hash(ckpt_tip) {
+        Ok(Some(canonical_hash)) if canonical_hash == ckpt_hash => {
+            info!(
+                ckpt_tip,
+                tip_block, "checkpoint valid, using partial rebuild"
+            );
+            Some((index, ckpt_tip))
+        }
+        Ok(_) => {
+            warn!(
+                ckpt_tip,
+                "checkpoint hash mismatch, falling back to full rebuild"
+            );
+            None
+        }
+        Err(e) => {
+            warn!(
+                ?e,
+                "failed to verify checkpoint hash, falling back to full rebuild"
+            );
+            None
+        }
+    }
 }
