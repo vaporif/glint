@@ -532,9 +532,16 @@ fn update_entity_counter<E: Evm<DB: DatabaseCommit + revm::Database<Error: core:
 fn build_processor_state(changes: &HashMap<B256, U256>) -> revm::state::EvmState {
     let mut storage = revm::state::EvmStorage::default();
     for (&slot, &value) in changes {
+        // original must differ from present so is_changed() returns true
+        // and State::commit doesn't silently drop the slot.
+        let original = if value == U256::ZERO {
+            U256::from(1)
+        } else {
+            U256::ZERO
+        };
         storage.insert(
             U256::from_be_bytes(slot.0),
-            EvmStorageSlot::new_changed(U256::ZERO, value, 0),
+            EvmStorageSlot::new_changed(original, value, 0),
         );
     }
 
@@ -704,6 +711,91 @@ mod tests {
         assert!(
             result.receipts.is_empty(),
             "no receipts expected when nothing expires"
+        );
+    }
+
+    #[test]
+    fn build_processor_state_sets_nonce_to_prevent_eip161_clear() {
+        let mut changes = HashMap::new();
+        let slot_a = B256::repeat_byte(0xAA);
+        let slot_b = B256::repeat_byte(0xBB);
+        changes.insert(slot_a, U256::from(42));
+        changes.insert(slot_b, U256::ZERO);
+
+        let state = build_processor_state(&changes);
+
+        let account = state
+            .get(&PROCESSOR_ADDRESS)
+            .expect("processor account should be present");
+
+        assert_eq!(
+            account.info.nonce, 1,
+            "nonce must be non-zero to prevent EIP-161 state clear"
+        );
+        assert!(account.is_touched(), "account must be marked as touched");
+
+        let evm_slot_a = U256::from_be_bytes(slot_a.0);
+        let storage_a = account.storage.get(&evm_slot_a).unwrap();
+        assert!(storage_a.is_changed(), "non-zero slot should be changed");
+        assert_eq!(storage_a.present_value(), U256::from(42));
+
+        let evm_slot_b = U256::from_be_bytes(slot_b.0);
+        let storage_b = account.storage.get(&evm_slot_b).unwrap();
+        assert!(
+            storage_b.is_changed(),
+            "zero-value slot must be marked as changed to persist deletion"
+        );
+        assert_eq!(storage_b.present_value(), U256::ZERO);
+    }
+
+    #[test]
+    fn expiration_persists_state_through_result() {
+        let entity_key = B256::repeat_byte(0x01);
+        let owner = Address::repeat_byte(0x42);
+
+        let mut exp_idx = ExpirationIndex::new();
+        exp_idx.insert(TEST_BLOCK, entity_key);
+        let config = test_evm_config(exp_idx);
+
+        let mut db = CacheDB::new(revm::database::EmptyDB::default());
+        seed_entity(&mut db, &entity_key, owner, TEST_BLOCK);
+        let mut state = State::builder()
+            .with_database(db)
+            .with_bundle_update()
+            .build();
+
+        let mut block_env = revm::context::BlockEnv::default();
+        block_env.number = U256::from(TEST_BLOCK);
+
+        let env = EvmEnv {
+            block_env,
+            cfg_env: revm::context::CfgEnv::default(),
+        };
+        let evm = EthEvmBuilder::new(&mut state, env).build();
+
+        let ctx = EthBlockExecutionCtx {
+            parent_hash: B256::ZERO,
+            parent_beacon_block_root: None,
+            ommers: &[],
+            withdrawals: None,
+            extra_data: alloy_primitives::Bytes::new(),
+            tx_count_hint: None,
+        };
+
+        let mut executor = config.create_executor(evm, ctx);
+        executor.apply_pre_execution_changes().unwrap();
+        let (evm, _result) = executor.finish().unwrap();
+
+        use revm::Database as _;
+        let meta_slot = entity_storage_key(&entity_key);
+        let mut db = evm.into_db();
+        let value = db
+            .storage(PROCESSOR_ADDRESS, U256::from_be_bytes(meta_slot.0))
+            .expect("storage read should succeed");
+        assert_eq!(
+            value,
+            U256::ZERO,
+            "expired entity metadata slot should be zeroed in persisted state"
         );
     }
 
