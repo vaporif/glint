@@ -140,11 +140,15 @@
             pkgs.apple-sdk_26
           ];
 
-        env = {
-          RUST_BACKTRACE = "1";
-          RUST_SRC_PATH = "${toolchain}/lib/rustlib/src/rust/library";
-          LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
-        };
+        env =
+          {
+            RUST_BACKTRACE = "1";
+            RUST_SRC_PATH = "${toolchain}/lib/rustlib/src/rust/library";
+            LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+          }
+          // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [pkgs.openssl];
+          };
       };
     });
   in {
