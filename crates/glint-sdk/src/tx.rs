@@ -75,13 +75,15 @@ pub fn build_glint_transaction(
     updates: &[UpdateEntity],
     deletes: &[DeleteEntity],
     extends: &[ExtendEntity],
-) -> GlintTransaction {
-    GlintTransaction {
+) -> eyre::Result<GlintTransaction> {
+    let tx = GlintTransaction {
         creates: creates.iter().map(Create::from).collect(),
         updates: updates.iter().map(Update::from).collect(),
         deletes: deletes.iter().map(|d| d.entity_key).collect(),
         extends: extends.iter().map(Extend::from).collect(),
-    }
+    };
+    glint_primitives::validation::validate_transaction(&tx)?;
+    Ok(tx)
 }
 
 #[cfg(test)]
@@ -100,7 +102,7 @@ mod tests {
             .string_annotation("app", "test")
             .numeric_annotation("priority", 1);
 
-        let tx = build_glint_transaction(&[builder], &[], &[], &[]);
+        let tx = build_glint_transaction(&[builder], &[], &[], &[]).unwrap();
 
         let mut buf = Vec::new();
         tx.encode(&mut buf);
@@ -128,7 +130,7 @@ mod tests {
             .extend_policy(ExtendPolicy::OwnerOnly)
             .operator(Some(Address::repeat_byte(0xAB)));
 
-        let tx = build_glint_transaction(&[], &[builder], &[], &[]);
+        let tx = build_glint_transaction(&[], &[builder], &[], &[]).unwrap();
 
         let mut buf = Vec::new();
         tx.encode(&mut buf);
@@ -143,7 +145,7 @@ mod tests {
         let key = B256::repeat_byte(0x03);
         let builder = ExtendEntity::new(key, 50);
 
-        let tx = build_glint_transaction(&[], &[], &[], &[builder]);
+        let tx = build_glint_transaction(&[], &[], &[], &[builder]).unwrap();
 
         let mut buf = Vec::new();
         tx.encode(&mut buf);
@@ -159,7 +161,7 @@ mod tests {
         let key = B256::repeat_byte(0x04);
         let builder = DeleteEntity::new(key);
 
-        let tx = build_glint_transaction(&[], &[], &[builder], &[]);
+        let tx = build_glint_transaction(&[], &[], &[builder], &[]).unwrap();
 
         let mut buf = Vec::new();
         tx.encode(&mut buf);
@@ -176,7 +178,7 @@ mod tests {
         let delete = DeleteEntity::new(B256::repeat_byte(0x02));
         let extend = ExtendEntity::new(B256::repeat_byte(0x03), 42);
 
-        let tx = build_glint_transaction(&[create], &[update], &[delete], &[extend]);
+        let tx = build_glint_transaction(&[create], &[update], &[delete], &[extend]).unwrap();
 
         let mut buf = Vec::new();
         tx.encode(&mut buf);

@@ -1,6 +1,6 @@
 use alloy_primitives::{Address, B256, U256};
 use glint_primitives::{
-    entity::{derive_entity_key, EntityKey, EntityMetadata},
+    entity::{EntityKey, EntityMetadata, derive_entity_key},
     error::GlintError,
     storage::{
         compute_content_hash_from_raw, decode_operator_value, encode_operator_value,
@@ -39,7 +39,11 @@ fn read_metadata(
 
 pub fn read_operator(state: &impl EntityState, entity_key: &B256) -> Option<Address> {
     let slot = entity_operator_key(entity_key);
-    state.read_slot(&slot).map(decode_operator_value)
+    let value = state.read_slot(&slot)?;
+    if value == U256::ZERO {
+        return None;
+    }
+    Some(decode_operator_value(value))
 }
 
 pub fn write_operator(state: &mut impl EntityState, entity_key: &B256, addr: Address) {

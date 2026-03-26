@@ -104,6 +104,14 @@ impl Decodable for Create {
             (ExtendPolicy::default(), None)
         };
 
+        let total_consumed = remaining_before - buf.len();
+        if total_consumed != header.payload_length {
+            return Err(alloy_rlp::Error::ListLengthMismatch {
+                expected: header.payload_length,
+                got: total_consumed,
+            });
+        }
+
         Ok(Self {
             btl,
             content_type,
@@ -234,6 +242,14 @@ impl Decodable for Update {
         } else {
             (None, None)
         };
+
+        let total_consumed = remaining_before - buf.len();
+        if total_consumed != header.payload_length {
+            return Err(alloy_rlp::Error::ListLengthMismatch {
+                expected: header.payload_length,
+                got: total_consumed,
+            });
+        }
 
         Ok(Self {
             entity_key,

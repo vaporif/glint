@@ -400,6 +400,10 @@ async fn stream_live(
             Ok(()) => {
                 // TODO: metrics
                 grace.reset();
+                if let Some(bnh) = maybe_bnh {
+                    current_tip = bnh.number;
+                    let _ = delivered_tx.send(Some(bnh));
+                }
             }
             Err(mpsc::error::TrySendError::Full(_)) => {
                 // TODO: metrics
@@ -415,11 +419,6 @@ async fn stream_live(
                 warn!("writer channel closed, consumer disconnected");
                 return Ok(());
             }
-        }
-
-        if let Some(bnh) = maybe_bnh {
-            current_tip = bnh.number;
-            let _ = delivered_tx.send(Some(bnh));
         }
     }
 }

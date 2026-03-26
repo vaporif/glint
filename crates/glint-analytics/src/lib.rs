@@ -127,9 +127,6 @@ async fn run_connection(
     while let Some(batch) = batch_rx.recv().await {
         match batch_decoder::apply_batch(store, &batch)? {
             ApplyResult::Watermark => {
-                if let Some(block) = batch_decoder::batch_block_number(&batch) {
-                    last_block = block;
-                }
                 info!("watermark received, entering live mode");
                 is_live = true;
                 let _ = ready_tx.send(true);
@@ -150,11 +147,12 @@ async fn run_connection(
             // Drain queued batches so we rebuild the snapshot only once per burst
             while let Ok(queued) = batch_rx.try_recv() {
                 match batch_decoder::apply_batch(store, &queued)? {
-                    ApplyResult::Applied | ApplyResult::Watermark => {
+                    ApplyResult::Applied => {
                         if let Some(block) = batch_decoder::batch_block_number(&queued) {
                             last_block = block;
                         }
                     }
+                    ApplyResult::Watermark => {}
                     ApplyResult::NeedsReplay => {
                         return Ok(ConnectionOutcome::NeedsReplay);
                     }

@@ -2,7 +2,7 @@ use std::sync::{Arc, LazyLock};
 
 use arrow::array::{
     ArrayRef, BinaryBuilder, FixedSizeBinaryBuilder, MapBuilder, MapFieldNames, StringBuilder,
-    UInt32Builder, UInt64Builder, UInt8Builder,
+    UInt8Builder, UInt32Builder, UInt64Builder,
 };
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
@@ -349,7 +349,7 @@ fn append_numeric_annotations(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::{Address, Bytes, B256};
+    use alloy_primitives::{Address, B256, Bytes};
     use glint_primitives::exex_types::BatchOp;
 
     fn sample_created() -> EntityEvent {

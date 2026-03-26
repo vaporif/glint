@@ -61,4 +61,7 @@ pub enum GlintError {
 
     #[error("operator address cannot be zero")]
     InvalidOperatorAddress,
+
+    #[error("duplicate entity key in transaction: {0}")]
+    DuplicateEntityKey(B256),
 }

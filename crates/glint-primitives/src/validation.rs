@@ -37,11 +37,11 @@ fn validate_annotation_key(key: &str) -> Result<(), GlintError> {
     if is_reserved_annotation_key(key) {
         return Err(GlintError::ReservedAnnotationKey(key.to_owned()));
     }
-    if !is_valid_annotation_key(key) {
-        return Err(GlintError::InvalidAnnotationKey(key.to_owned()));
-    }
     if key.len() > MAX_ANNOTATION_KEY_SIZE {
         return Err(GlintError::AnnotationKeyTooLarge(key.len()));
+    }
+    if !is_valid_annotation_key(key) {
+        return Err(GlintError::InvalidAnnotationKey(key.to_owned()));
     }
     Ok(())
 }
@@ -127,6 +127,19 @@ pub fn validate_transaction(tx: &GlintTransaction) -> Result<(), GlintError> {
     for e in &tx.extends {
         validate_extend(e)?;
     }
+
+    let mut seen_keys = HashSet::with_capacity(tx.deletes.len() + tx.updates.len());
+    for key in &tx.deletes {
+        if !seen_keys.insert(key) {
+            return Err(GlintError::DuplicateEntityKey(*key));
+        }
+    }
+    for u in &tx.updates {
+        if !seen_keys.insert(&u.entity_key) {
+            return Err(GlintError::DuplicateEntityKey(u.entity_key));
+        }
+    }
+
     Ok(())
 }
 
@@ -401,5 +414,44 @@ mod tests {
             operator: Some(None),
         };
         assert!(validate_update(&u).is_ok());
+    }
+
+    #[test]
+    fn duplicate_delete_keys_rejected() {
+        let key = B256::repeat_byte(0x01);
+        let tx = GlintTransaction {
+            creates: vec![],
+            updates: vec![],
+            deletes: vec![key, key],
+            extends: vec![],
+        };
+        assert!(matches!(
+            validate_transaction(&tx),
+            Err(GlintError::DuplicateEntityKey(_))
+        ));
+    }
+
+    #[test]
+    fn delete_and_update_same_key_rejected() {
+        let key = B256::repeat_byte(0x01);
+        let tx = GlintTransaction {
+            creates: vec![],
+            updates: vec![Update {
+                entity_key: key,
+                btl: 100,
+                content_type: "text/plain".into(),
+                payload: b"test".to_vec(),
+                string_annotations: vec![],
+                numeric_annotations: vec![],
+                extend_policy: None,
+                operator: None,
+            }],
+            deletes: vec![key],
+            extends: vec![],
+        };
+        assert!(matches!(
+            validate_transaction(&tx),
+            Err(GlintError::DuplicateEntityKey(_))
+        ));
     }
 }

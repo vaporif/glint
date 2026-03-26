@@ -112,7 +112,7 @@ where
         let count: u64 = count_value
             .unwrap_or(U256::ZERO)
             .try_into()
-            .unwrap_or(u64::MAX);
+            .map_err(|_| internal_err("entity count overflows u64"))?;
 
         Ok(count)
     }

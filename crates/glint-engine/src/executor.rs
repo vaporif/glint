@@ -374,7 +374,9 @@ where
         if let Some(last) = exp_idx.last_drained_block()
             && current_block <= last
         {
-            exp_idx.clear_range(current_block..=last);
+            if current_block < last {
+                exp_idx.clear_range((current_block + 1)..=last);
+            }
             exp_idx.reset_last_drained();
         }
 
