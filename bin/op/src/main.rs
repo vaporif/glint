@@ -13,7 +13,6 @@ use tracing::info;
 use mote_node::cli::MoteArgs;
 use mote_node::genesis::extract_mote_config;
 
-/// Combined CLI arguments: Optimism rollup args + Mote-specific args.
 #[derive(Debug, Args)]
 struct MoteOpArgs {
     #[command(flatten)]
