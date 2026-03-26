@@ -358,6 +358,8 @@ async fn replay_snapshot(
     })
 }
 
+const SEND_TIMEOUT: Duration = Duration::from_secs(5);
+
 async fn stream_live(
     batch_rx: &mut mpsc::Receiver<(Option<BlockNumHash>, RecordBatch)>,
     writer_tx: mpsc::Sender<RecordBatch>,
@@ -366,7 +368,6 @@ async fn stream_live(
     cancel: &CancellationToken,
     initial_tip: u64,
 ) -> eyre::Result<()> {
-    let mut grace = GraceState::default();
     let mut current_tip = initial_tip;
 
     loop {
@@ -396,27 +397,20 @@ async fn stream_live(
             }
         };
 
-        match writer_tx.try_send(batch) {
-            Ok(()) => {
-                // TODO: metrics
-                grace.reset();
+        match tokio::time::timeout(SEND_TIMEOUT, writer_tx.send(batch)).await {
+            Ok(Ok(())) => {
                 if let Some(bnh) = maybe_bnh {
                     current_tip = bnh.number;
                     let _ = delivered_tx.send(Some(bnh));
                 }
             }
-            Err(mpsc::error::TrySendError::Full(_)) => {
-                // TODO: metrics
-                grace.record_failure();
-                if grace.should_disconnect {
-                    warn!("backpressure threshold reached, disconnecting consumer");
-                    // TODO: metrics
-                    shutdown_writer(writer_tx, write_handle).await;
-                    return Ok(());
-                }
-            }
-            Err(mpsc::error::TrySendError::Closed(_)) => {
+            Ok(Err(_)) => {
                 warn!("writer channel closed, consumer disconnected");
+                return Ok(());
+            }
+            Err(_) => {
+                warn!("send timed out, disconnecting slow consumer");
+                shutdown_writer(writer_tx, write_handle).await;
                 return Ok(());
             }
         }

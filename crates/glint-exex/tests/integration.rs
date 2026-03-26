@@ -171,24 +171,6 @@ async fn full_subscribe_and_replay() {
 
     consume_handshake(&std_client);
 
-    let (done_tx, done_rx) = tokio::sync::oneshot::channel();
-    std::thread::spawn(move || {
-        let reader = StreamReader::try_new(&std_client, None).unwrap();
-        let mut batches = Vec::new();
-        for batch_result in reader {
-            match batch_result {
-                Ok(batch) => {
-                    batches.push(batch);
-                    if batches.len() >= 3 {
-                        break;
-                    }
-                }
-                Err(_) => break,
-            }
-        }
-        let _ = done_tx.send(batches);
-    });
-
     let snap_req = timeout(Duration::from_secs(5), harness.snapshot_rx.recv())
         .await
         .expect("snapshot request timed out")
@@ -206,14 +188,36 @@ async fn full_subscribe_and_replay() {
 
     let _ = snap_req.replay_done_rx.await;
 
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
     let live_bnh = BlockNumHash::new(20, B256::repeat_byte(20));
     harness
         .batch_tx
         .send((Some(live_bnh), make_test_batch(20)))
         .await
         .unwrap();
+
+    // Read on a blocking thread after all data has been sent to the server.
+    // All 3 batches (snapshot + watermark + live) are buffered in the IPC
+    // writer channel, so blocking reads will find data without racing.
+    let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+    std::thread::spawn(move || {
+        std_client
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let reader = StreamReader::try_new(&std_client, None).unwrap();
+        let mut batches = Vec::new();
+        for batch_result in reader {
+            match batch_result {
+                Ok(batch) => {
+                    batches.push(batch);
+                    if batches.len() >= 3 {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+        let _ = done_tx.send(batches);
+    });
 
     let batches = timeout(Duration::from_secs(10), done_rx)
         .await
