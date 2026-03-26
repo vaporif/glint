@@ -32,7 +32,7 @@ jobs:
 
       - uses: cachix/cachix-action@v17
         with:
-          name: mote
+          name: glint
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: Nix flake checks
@@ -51,7 +51,7 @@ jobs:
 
       - uses: cachix/cachix-action@v17
         with:
-          name: mote
+          name: glint
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - uses: Swatinem/rust-cache@v2
@@ -72,7 +72,7 @@ jobs:
 
       - uses: cachix/cachix-action@v17
         with:
-          name: mote
+          name: glint
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - uses: Swatinem/rust-cache@v2
@@ -81,13 +81,14 @@ jobs:
         run: nix develop --command cargo nextest run --workspace
 
   build:
-    name: Nix build (${{ matrix.os }})
+    name: Nix build ${{ matrix.package }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+        package: [eth-glint, op-glint]
     steps:
       - uses: actions/checkout@v6
 
@@ -97,11 +98,11 @@ jobs:
 
       - uses: cachix/cachix-action@v17
         with:
-          name: mote
+          name: glint
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
-      - name: Nix build
-        run: nix build
+      - name: Nix build ${{ matrix.package }}
+        run: nix build .#${{ matrix.package }}
 
   gitleaks:
     name: Gitleaks

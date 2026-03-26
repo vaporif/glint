@@ -1,0 +1,31 @@
+[package]
+name = "glint-node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Glint node shared library: CLI args and genesis config extraction"
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+name = "glint_node"
+path = "src/lib.rs"
+
+[dependencies]
+glint-primitives.workspace = true
+
+clap.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+eyre.workspace = true
+
+[dev-dependencies]
+glint-engine = { path = "../glint-engine" }
+alloy-primitives = { workspace = true }
+tokio = { workspace = true, features = ["full", "test-util"] }
+
+[lints]
+workspace = true

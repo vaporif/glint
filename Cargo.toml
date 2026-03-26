@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = ["crates/*", "bin/*"]
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
@@ -9,7 +9,7 @@ nursery = { level = "warn", priority = -1 }
 
 cargo = { level = "warn", priority = -1 }
 
-# TODO: clippy hangs (I've waited more than enough) with multicheck enabled on mote-primitives
+# TODO: clippy hangs (I've waited more than enough) with multicheck enabled on glint-primitives
 multiple_crate_versions = "allow"
 implicit_return = "allow"
 missing_errors_doc = "allow"
@@ -27,19 +27,21 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 authors = ["Dmytro Onypko <vaporif@proton.me>"]
 description = "Ephemeral entity layer for Ethereum"
-repository = "https://github.com/vaporif/mote"
+repository = "https://github.com/vaporif/glint"
 readme = "README.md"
 keywords = ["ethereum", "reth", "ephemeral", "storage"]
 categories = ["cryptography::cryptocurrencies"]
 
 [workspace.dependencies]
-mote-primitives = { path = "crates/mote-primitives" }
+glint-primitives = { path = "crates/glint-primitives" }
 
 alloy-primitives = "1.5"
 alloy-rlp = { version = "0.3", features = ["derive"] }
 alloy-sol-types = "1.5"
 alloy-consensus = "1.7"
 alloy-eips = "1.7"
+
+# version used by reth
 alloy-evm = "0.27"
 
 reth-ethereum = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.11.3", features = ["node", "node-api", "evm", "cli"] }
@@ -52,6 +54,18 @@ reth-node-builder = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1
 reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.11.3" }
 reth-provider = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.11.3" }
 reth-trie = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.11.3" }
+reth-cli-util = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.11.3" }
+
+# op-reth crates from the optimism monorepo (pinned to reth v1.11.3)
+reth-optimism-node = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }
+reth-optimism-evm = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }
+reth-optimism-primitives = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }
+reth-optimism-chainspec = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }
+reth-optimism-cli = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }
+
+# alloy-op-evm and alloy-op-hardforks (from the same optimism monorepo, used for OP block executor types)
+alloy-op-evm = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }
+alloy-op-hardforks = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }
 
 # versions used by reth
 revm = { version = "34.0.0", default-features = false }
@@ -65,11 +79,13 @@ tracing = "0.1"
 eyre = "0.6"
 borsh = { version = "1", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 datafusion = "53"
 arrow-flight = { version = "58", features = ["flight-sql-experimental"] }
 tonic = "0.14"
 axum = "0.8"
+parking_lot = "0.12"
 clap = { version = "4", features = ["derive"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 bytes = "1"
@@ -78,3 +94,15 @@ tower = { version = "0.5", features = ["util"] }
 regex = "1"
 thiserror = "2"
 color-eyre = "0.6"
+
+# Patch crates.io versions with the same optimism monorepo rev so there's only
+# one copy of each crate in the dependency graph (mirrors the optimism
+# workspace's own [patch.crates-io] section).
+[patch.crates-io]
+op-alloy-consensus = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }
+op-alloy-rpc-types-engine = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }
+op-alloy-network = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }
+op-alloy-rpc-types = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }
+op-alloy = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }
+alloy-op-hardforks = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }
+alloy-op-evm = { git = "https://github.com/ethereum-optimism/optimism", rev = "9705faa886127f60e2b1a9b1bcdfcb57ceef2ab8" }

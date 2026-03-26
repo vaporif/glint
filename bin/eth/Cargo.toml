@@ -1,0 +1,30 @@
+[package]
+name = "glint-node-eth"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Glint Ethereum node binary"
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "eth-glint"
+path = "src/main.rs"
+
+[dependencies]
+glint-engine = { path = "../../crates/glint-engine" }
+glint-exex = { path = "../../crates/glint-exex" }
+glint-node = { path = "../../crates/glint-node" }
+
+reth-ethereum.workspace = true
+
+parking_lot.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true
