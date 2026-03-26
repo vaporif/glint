@@ -1,0 +1,9 @@
+[profile.default]
+slow-timeout = { period = "30s" }
+
+[test-groups.socket-tests]
+max-threads = 1
+
+[[profile.default.overrides]]
+filter = "package(glint-exex) & kind(test)"
+test-group = "socket-tests"

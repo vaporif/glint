@@ -60,7 +60,6 @@ pub struct ProbeResponse {
 pub struct SnapshotRequest {
     pub resume_block: u64,
     pub reply_tx: oneshot::Sender<Vec<(BlockNumHash, RecordBatch)>>,
-    /// Notification loop awaits this; writer sends when replay is complete.
     pub replay_done_rx: oneshot::Receiver<()>,
 }
 
@@ -359,6 +358,8 @@ async fn replay_snapshot(
     })
 }
 
+const SEND_TIMEOUT: Duration = Duration::from_secs(5);
+
 async fn stream_live(
     batch_rx: &mut mpsc::Receiver<(Option<BlockNumHash>, RecordBatch)>,
     writer_tx: mpsc::Sender<RecordBatch>,
@@ -367,7 +368,6 @@ async fn stream_live(
     cancel: &CancellationToken,
     initial_tip: u64,
 ) -> eyre::Result<()> {
-    let mut grace = GraceState::default();
     let mut current_tip = initial_tip;
 
     loop {
@@ -397,30 +397,22 @@ async fn stream_live(
             }
         };
 
-        match writer_tx.try_send(batch) {
-            Ok(()) => {
-                // TODO: metrics
-                grace.reset();
-            }
-            Err(mpsc::error::TrySendError::Full(_)) => {
-                // TODO: metrics
-                grace.record_failure();
-                if grace.should_disconnect {
-                    warn!("backpressure threshold reached, disconnecting consumer");
-                    // TODO: metrics
-                    shutdown_writer(writer_tx, write_handle).await;
-                    return Ok(());
+        match tokio::time::timeout(SEND_TIMEOUT, writer_tx.send(batch)).await {
+            Ok(Ok(())) => {
+                if let Some(bnh) = maybe_bnh {
+                    current_tip = bnh.number;
+                    let _ = delivered_tx.send(Some(bnh));
                 }
             }
-            Err(mpsc::error::TrySendError::Closed(_)) => {
+            Ok(Err(_)) => {
                 warn!("writer channel closed, consumer disconnected");
                 return Ok(());
             }
-        }
-
-        if let Some(bnh) = maybe_bnh {
-            current_tip = bnh.number;
-            let _ = delivered_tx.send(Some(bnh));
+            Err(_) => {
+                warn!("send timed out, disconnecting slow consumer");
+                shutdown_writer(writer_tx, write_handle).await;
+                return Ok(());
+            }
         }
     }
 }
@@ -504,6 +496,72 @@ mod tests {
         assert!(!state.should_disconnect);
         state.force_disconnect();
         assert!(state.should_disconnect);
+    }
+
+    #[tokio::test]
+    async fn stream_live_delivers_all_batches() {
+        use std::sync::atomic::{AtomicU32, Ordering as AtomicOrdering};
+
+        let (batch_tx, mut batch_rx) = mpsc::channel(16);
+        // Small writer channel to exercise backpressure path
+        let (writer_tx, mut writer_rx) = mpsc::channel::<RecordBatch>(1);
+        let (delivered_tx, mut delivered_rx) = watch::channel(None);
+        let cancel = CancellationToken::new();
+
+        let writer_count = Arc::new(AtomicU32::new(0));
+        let writer_count_clone = Arc::clone(&writer_count);
+
+        let write_handle = tokio::spawn(async move {
+            while let Some(_batch) = writer_rx.recv().await {
+                writer_count_clone.fetch_add(1, AtomicOrdering::Relaxed);
+            }
+            Ok::<(), eyre::Report>(())
+        });
+
+        let cancel_clone = cancel.clone();
+        let live_handle = tokio::spawn(async move {
+            stream_live(
+                &mut batch_rx,
+                writer_tx,
+                write_handle,
+                &delivered_tx,
+                &cancel_clone,
+                0,
+            )
+            .await
+        });
+
+        let batch = build_watermark_batch(1).unwrap();
+        let bnh1 = BlockNumHash::new(10, alloy_primitives::B256::repeat_byte(0x0A));
+        let bnh2 = BlockNumHash::new(20, alloy_primitives::B256::repeat_byte(0x14));
+        let bnh3 = BlockNumHash::new(30, alloy_primitives::B256::repeat_byte(0x1E));
+
+        batch_tx.send((Some(bnh1), batch.clone())).await.unwrap();
+        batch_tx.send((Some(bnh2), batch.clone())).await.unwrap();
+        batch_tx.send((Some(bnh3), batch.clone())).await.unwrap();
+
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                delivered_rx.changed().await.unwrap();
+                if delivered_rx.borrow().is_some_and(|bnh| bnh.number == 30) {
+                    break;
+                }
+            }
+        })
+        .await
+        .expect("delivered_tx should advance to block 30");
+
+        assert_eq!(delivered_rx.borrow().unwrap().number, 30);
+
+        cancel.cancel();
+        live_handle.await.unwrap().unwrap();
+
+        // +1 for the watermark sent on cancellation
+        assert_eq!(
+            writer_count.load(AtomicOrdering::Relaxed),
+            4,
+            "writer must receive all 3 batches + 1 shutdown watermark (no drops)"
+        );
     }
 
     #[test]

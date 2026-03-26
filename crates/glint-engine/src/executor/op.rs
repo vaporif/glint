@@ -30,7 +30,6 @@ impl<H: Send + Sync + 'static, T: Default + Clone + Send + Sync + 'static> Glint
                 blob_gas_used: 0,
                 tx_type,
             },
-            // CRUD results are system-processed; the real sender is in entity metadata
             is_deposit: false,
             sender: alloy_primitives::Address::ZERO,
         }

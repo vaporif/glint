@@ -49,4 +49,19 @@ pub enum GlintError {
 
     #[error("RLP decode error: {0}")]
     RlpDecode(String),
+
+    #[error("sender is not authorized to extend this entity")]
+    NotAuthorizedToExtend,
+
+    #[error("sender is not authorized to update this entity")]
+    NotAuthorizedToUpdate,
+
+    #[error("operator cannot change entity permissions")]
+    OperatorCannotChangePermissions,
+
+    #[error("operator address cannot be zero")]
+    InvalidOperatorAddress,
+
+    #[error("duplicate entity key in transaction: {0}")]
+    DuplicateEntityKey(B256),
 }

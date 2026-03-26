@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use alloy_primitives::Address;
+
 use crate::annotations::{is_reserved_annotation_key, is_valid_annotation_key};
 use crate::constants::{
     MAX_ANNOTATION_KEY_SIZE, MAX_ANNOTATION_VALUE_SIZE, MAX_ANNOTATIONS_PER_ENTITY, MAX_BTL,
@@ -35,11 +37,11 @@ fn validate_annotation_key(key: &str) -> Result<(), GlintError> {
     if is_reserved_annotation_key(key) {
         return Err(GlintError::ReservedAnnotationKey(key.to_owned()));
     }
-    if !is_valid_annotation_key(key) {
-        return Err(GlintError::InvalidAnnotationKey(key.to_owned()));
-    }
     if key.len() > MAX_ANNOTATION_KEY_SIZE {
         return Err(GlintError::AnnotationKeyTooLarge(key.len()));
+    }
+    if !is_valid_annotation_key(key) {
+        return Err(GlintError::InvalidAnnotationKey(key.to_owned()));
     }
     Ok(())
 }
@@ -73,18 +75,32 @@ fn validate_annotations(
     Ok(())
 }
 
+fn validate_operator(operator: Option<Address>) -> Result<(), GlintError> {
+    if operator == Some(Address::ZERO) {
+        return Err(GlintError::InvalidOperatorAddress);
+    }
+    Ok(())
+}
+
 pub fn validate_create(c: &Create) -> Result<(), GlintError> {
     validate_btl(c.btl)?;
     validate_content_type(&c.content_type)?;
     validate_payload(&c.payload)?;
-    validate_annotations(&c.string_annotations, &c.numeric_annotations)
+    validate_annotations(&c.string_annotations, &c.numeric_annotations)?;
+    validate_operator(c.operator)
 }
 
 pub fn validate_update(u: &Update) -> Result<(), GlintError> {
     validate_btl(u.btl)?;
     validate_content_type(&u.content_type)?;
     validate_payload(&u.payload)?;
-    validate_annotations(&u.string_annotations, &u.numeric_annotations)
+    validate_annotations(&u.string_annotations, &u.numeric_annotations)?;
+    if let Some(Some(addr)) = u.operator
+        && addr == Address::ZERO
+    {
+        return Err(GlintError::InvalidOperatorAddress);
+    }
+    Ok(())
 }
 
 pub const fn validate_extend(e: &Extend) -> Result<(), GlintError> {
@@ -111,6 +127,19 @@ pub fn validate_transaction(tx: &GlintTransaction) -> Result<(), GlintError> {
     for e in &tx.extends {
         validate_extend(e)?;
     }
+
+    let mut seen_keys = HashSet::with_capacity(tx.deletes.len() + tx.updates.len());
+    for key in &tx.deletes {
+        if !seen_keys.insert(key) {
+            return Err(GlintError::DuplicateEntityKey(*key));
+        }
+    }
+    for u in &tx.updates {
+        if !seen_keys.insert(&u.entity_key) {
+            return Err(GlintError::DuplicateEntityKey(u.entity_key));
+        }
+    }
+
     Ok(())
 }
 
@@ -127,6 +156,8 @@ mod tests {
             payload: b"hello".to_vec(),
             string_annotations: vec![],
             numeric_annotations: vec![],
+            extend_policy: ExtendPolicy::OwnerOnly,
+            operator: None,
         }
     }
 
@@ -324,5 +355,103 @@ mod tests {
             extends: vec![],
         };
         assert!(validate_transaction(&tx).is_ok());
+    }
+
+    #[test]
+    fn create_zero_operator_rejected() {
+        let mut c = valid_create();
+        c.operator = Some(Address::ZERO);
+        assert_eq!(validate_create(&c), Err(GlintError::InvalidOperatorAddress));
+    }
+
+    #[test]
+    fn create_valid_operator_passes() {
+        let mut c = valid_create();
+        c.operator = Some(Address::repeat_byte(0x42));
+        assert!(validate_create(&c).is_ok());
+    }
+
+    #[test]
+    fn update_zero_operator_rejected() {
+        let u = Update {
+            entity_key: B256::repeat_byte(0x01),
+            btl: 100,
+            content_type: "text/plain".into(),
+            payload: b"test".to_vec(),
+            string_annotations: vec![],
+            numeric_annotations: vec![],
+            extend_policy: None,
+            operator: Some(Some(Address::ZERO)),
+        };
+        assert_eq!(validate_update(&u), Err(GlintError::InvalidOperatorAddress));
+    }
+
+    #[test]
+    fn update_valid_operator_passes() {
+        let u = Update {
+            entity_key: B256::repeat_byte(0x01),
+            btl: 100,
+            content_type: "text/plain".into(),
+            payload: b"test".to_vec(),
+            string_annotations: vec![],
+            numeric_annotations: vec![],
+            extend_policy: None,
+            operator: Some(Some(Address::repeat_byte(0x42))),
+        };
+        assert!(validate_update(&u).is_ok());
+    }
+
+    #[test]
+    fn update_remove_operator_passes() {
+        let u = Update {
+            entity_key: B256::repeat_byte(0x01),
+            btl: 100,
+            content_type: "text/plain".into(),
+            payload: b"test".to_vec(),
+            string_annotations: vec![],
+            numeric_annotations: vec![],
+            extend_policy: None,
+            operator: Some(None),
+        };
+        assert!(validate_update(&u).is_ok());
+    }
+
+    #[test]
+    fn duplicate_delete_keys_rejected() {
+        let key = B256::repeat_byte(0x01);
+        let tx = GlintTransaction {
+            creates: vec![],
+            updates: vec![],
+            deletes: vec![key, key],
+            extends: vec![],
+        };
+        assert!(matches!(
+            validate_transaction(&tx),
+            Err(GlintError::DuplicateEntityKey(_))
+        ));
+    }
+
+    #[test]
+    fn delete_and_update_same_key_rejected() {
+        let key = B256::repeat_byte(0x01);
+        let tx = GlintTransaction {
+            creates: vec![],
+            updates: vec![Update {
+                entity_key: key,
+                btl: 100,
+                content_type: "text/plain".into(),
+                payload: b"test".to_vec(),
+                string_annotations: vec![],
+                numeric_annotations: vec![],
+                extend_policy: None,
+                operator: None,
+            }],
+            deletes: vec![key],
+            extends: vec![],
+        };
+        assert!(matches!(
+            validate_transaction(&tx),
+            Err(GlintError::DuplicateEntityKey(_))
+        ));
     }
 }
