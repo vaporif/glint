@@ -3,6 +3,7 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::core::async_trait;
 use jsonrpsee::proc_macros::rpc;
 use reth_provider::StateProviderFactory;
+use tracing::{debug, instrument};
 
 use glint_engine::slot_counter::ENTITY_COUNT_KEY;
 use glint_primitives::constants::PROCESSOR_ADDRESS;
@@ -42,6 +43,7 @@ impl<Provider> GlintApiServer for GlintRpc<Provider>
 where
     Provider: StateProviderFactory + 'static,
 {
+    #[instrument(skip(self), fields(%entity_key), name = "glint_rpc::get_entity")]
     async fn get_entity(&self, entity_key: B256) -> RpcResult<Option<EntityInfo>> {
         let state = self
             .provider
@@ -54,14 +56,17 @@ where
             .map_err(|e| internal_err(format!("failed to read metadata slot: {e}")))?;
 
         let Some(meta_value) = meta_value else {
+            debug!("entity not found (no storage value)");
             return Ok(None);
         };
 
         if meta_value == U256::ZERO {
+            debug!("entity not found (zero value)");
             return Ok(None);
         }
 
         let meta = EntityMetadata::decode(&meta_value.to_be_bytes::<32>());
+        debug!(owner = ?meta.owner, expires_at_block = meta.expires_at_block, "found entity metadata");
 
         let operator = if meta.has_operator {
             let op_slot = entity_operator_key(&entity_key);
@@ -88,6 +93,7 @@ where
         }))
     }
 
+    #[instrument(skip(self), name = "glint_rpc::get_entity_count")]
     async fn get_entity_count(&self) -> RpcResult<u64> {
         let state = self
             .provider
@@ -103,6 +109,7 @@ where
             .try_into()
             .map_err(|_| internal_err("entity count overflows u64"))?;
 
+        debug!(count, "returning entity count");
         Ok(count)
     }
 }

@@ -1,12 +1,12 @@
 use alloy_evm::{
-    Database, EvmFactory,
     block::{BlockExecutorFactory, BlockExecutorFor},
     eth::EthTxResult,
     precompiles::PrecompilesMap,
+    Database, EvmFactory,
 };
 use alloy_primitives::Log;
 use reth_evm::{FromRecoveredTx, FromTxWithEncoded};
-use revm::{Inspector, context::result::ResultAndState, database::State};
+use revm::{context::result::ResultAndState, database::State, Inspector};
 use std::marker::PhantomData;
 
 use super::{GlintBlockExecutor, GlintBlockExecutorFactory, GlintResultBuilder, GlintTransaction};
@@ -80,6 +80,7 @@ where
             expiration_index: self.expiration_index.clone(),
             config: self.config.clone(),
             pending_logs: Vec::new(),
+            pending_state: revm::state::EvmState::default(),
             _marker: PhantomData,
         }
     }

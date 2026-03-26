@@ -1,3 +1,4 @@
+use std::fs::File;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -9,6 +10,7 @@ pub struct EthNodeHandle {
     child: Child,
     rpc_url: String,
     _datadir: TempDir,
+    log_file: PathBuf,
 }
 
 impl EthNodeHandle {
@@ -18,6 +20,10 @@ impl EthNodeHandle {
         let datadir = tempfile::tempdir()?;
         let port = Self::pick_port()?;
         let rpc_url = format!("http://127.0.0.1:{port}");
+
+        let log_file = datadir.path().join("node-output.log");
+        let stderr_file = File::create(&log_file)?;
+        let stdout_file = stderr_file.try_clone()?;
 
         let child = Command::new(&bin)
             .arg("node")
@@ -33,14 +39,15 @@ impl EthNodeHandle {
             .arg(datadir.path())
             .arg("--log.file.directory")
             .arg(datadir.path().join("logs"))
-            .arg("--quiet")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .arg("-vvvv")
+            .stdout(Stdio::from(stdout_file))
+            .stderr(Stdio::from(stderr_file))
             .spawn()?;
 
         let mut handle = Self {
             child,
             rpc_url,
+            log_file,
             _datadir: datadir,
         };
 
@@ -50,6 +57,18 @@ impl EthNodeHandle {
 
     pub fn rpc_url(&self) -> &str {
         &self.rpc_url
+    }
+
+    pub fn dump_logs(&self) -> String {
+        std::fs::read_to_string(&self.log_file).unwrap_or_else(|e| format!("<read error: {e}>"))
+    }
+
+    pub fn grep_logs(&self, pattern: &str) -> Vec<String> {
+        self.dump_logs()
+            .lines()
+            .filter(|l| l.contains(pattern))
+            .map(String::from)
+            .collect()
     }
 
     fn resolve_binary() -> eyre::Result<PathBuf> {
@@ -117,5 +136,27 @@ impl Drop for EthNodeHandle {
     fn drop(&mut self) {
         self.child.kill().ok();
         self.child.wait().ok();
+
+        if std::thread::panicking() {
+            let logs = std::fs::read_to_string(&self.log_file).unwrap_or_default();
+            let glint_lines: Vec<&str> = logs.lines().filter(|l| l.contains("glint")).collect();
+            eprintln!("\n=== GLINT NODE LOGS (filtered) ===");
+            for line in &glint_lines {
+                eprintln!("{line}");
+            }
+            if glint_lines.is_empty() {
+                // Show last 50 lines if no glint-specific logs found
+                let all_lines: Vec<&str> = logs.lines().collect();
+                let start = all_lines.len().saturating_sub(50);
+                eprintln!(
+                    "(no glint-specific logs found, showing last {} lines)",
+                    all_lines.len() - start
+                );
+                for line in &all_lines[start..] {
+                    eprintln!("{line}");
+                }
+            }
+            eprintln!("=== END NODE LOGS ===\n");
+        }
     }
 }

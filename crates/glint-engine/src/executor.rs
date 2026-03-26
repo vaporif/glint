@@ -20,6 +20,7 @@ use glint_primitives::{
     storage::{entity_content_hash_key, entity_operator_key, entity_storage_key},
 };
 use parking_lot::Mutex;
+use tracing::{debug, info, instrument, warn};
 use reth_evm::{
     ConfigureEngineEvm, ConfigureEvm, Evm, EvmEnvFor, ExecutableTxIterator, ExecutionCtxFor,
     OnStateHook,
@@ -203,6 +204,7 @@ pub struct GlintBlockExecutor<InnerExec, RB> {
     expiration_index: SharedExpirationIndex,
     config: Arc<GlintChainConfig>,
     pending_logs: Vec<Log>,
+    pending_state: revm::state::EvmState,
     _marker: PhantomData<RB>,
 }
 
@@ -229,11 +231,13 @@ where
     type Evm = InnerExec::Evm;
     type Result = InnerExec::Result;
 
+    #[instrument(skip_all, name = "glint::apply_pre_execution_changes")]
     fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
         self.inner.apply_pre_execution_changes()?;
         self.run_expiration_housekeeping()
     }
 
+    #[instrument(skip_all, name = "glint::execute_tx")]
     fn execute_transaction_without_commit(
         &mut self,
         tx: impl ExecutableTx<Self>,
@@ -253,12 +257,15 @@ where
         let tx_type = tx_ref.tx_type();
         let tx_hash = recovered.tx().trie_hash();
 
+        info!(%sender, %tx_hash, calldata_len = calldata.len(), gas_limit, "intercepted glint tx");
+
         let staged = self.execute_glint_crud(calldata, sender, tx_hash)?;
 
         let intrinsic_gas = INTRINSIC_GAS + calldata.len() as u64 * GAS_PER_DATA_BYTE;
         let total_gas = intrinsic_gas.saturating_add(staged.gas_used);
 
         if gas_limit < total_gas {
+            warn!(gas_limit, total_gas, "insufficient gas for glint ops, reverting");
             let result = ResultAndState {
                 result: ExecutionResult::Revert {
                     gas_used: gas_limit,
@@ -271,7 +278,10 @@ where
             return Ok(RB::build_crud_result(result, tx_type));
         }
 
-        let logs = self.commit_crud(staged)?;
+        let log_count = staged.logs.len();
+        let (logs, state) = self.commit_crud(staged)?;
+
+        info!(total_gas, log_count, "glint tx executed successfully");
 
         let result = ResultAndState {
             result: ExecutionResult::Success {
@@ -281,7 +291,7 @@ where
                 logs,
                 output: revm::context::result::Output::Call(alloy_primitives::Bytes::new()),
             },
-            state: HashMap::default(),
+            state,
         };
 
         Ok(RB::build_crud_result(result, tx_type))
@@ -291,11 +301,14 @@ where
         self.inner.commit_transaction(output)
     }
 
+    #[instrument(skip_all, name = "glint::finish")]
     fn finish(
         mut self,
     ) -> Result<(Self::Evm, BlockExecutionResult<InnerExec::Receipt>), BlockExecutionError> {
         if !self.pending_logs.is_empty() {
+            debug!(pending_log_count = self.pending_logs.len(), "flushing pending expiration logs as system receipt");
             let logs = std::mem::take(&mut self.pending_logs);
+            let state = std::mem::take(&mut self.pending_state);
             let result = ResultAndState {
                 result: ExecutionResult::Success {
                     reason: revm::context::result::SuccessReason::Stop,
@@ -304,7 +317,7 @@ where
                     logs,
                     output: revm::context::result::Output::Call(alloy_primitives::Bytes::new()),
                 },
-                state: HashMap::default(),
+                state,
             };
             self.inner
                 .commit_transaction(RB::build_crud_result(result, Default::default()))?;
@@ -362,12 +375,14 @@ where
         Ok(EntityMetadata::decode(&bytes))
     }
 
+    #[instrument(skip_all, name = "glint::expiration_housekeeping")]
     fn run_expiration_housekeeping(&mut self) -> Result<(), BlockExecutionError> {
         use alloy_evm::revm::context::Block as _;
         use glint_primitives::events::EntityExpired;
         use revm::Database as _;
 
         let current_block: u64 = self.inner.evm().block().number().saturating_to();
+        debug!(current_block, "running expiration housekeeping");
 
         let mut exp_idx = self.expiration_index.lock();
 
@@ -386,6 +401,7 @@ where
         if expired_keys.is_empty() {
             return Ok(());
         }
+        info!(current_block, count = expired_keys.len(), "expiring entities");
 
         let mut state_changes: HashMap<B256, U256> = HashMap::new();
         let mut expired_slot_count: u64 = 0;
@@ -442,7 +458,7 @@ where
                 -(expired_entity_count.cast_signed()),
                 &mut state_changes,
             )?;
-            commit_storage_changes(self.inner.evm_mut(), &state_changes);
+            self.pending_state = build_processor_state(&state_changes);
         }
 
         Ok(())
@@ -503,7 +519,7 @@ fn update_entity_counter<E: Evm<DB: DatabaseCommit + revm::Database<Error: core:
     Ok(())
 }
 
-fn commit_storage_changes<E: Evm<DB: DatabaseCommit>>(evm: &mut E, changes: &HashMap<B256, U256>) {
+fn build_processor_state(changes: &HashMap<B256, U256>) -> revm::state::EvmState {
     let mut storage = revm::state::EvmStorage::default();
     for (&slot, &value) in changes {
         storage.insert(
@@ -512,17 +528,22 @@ fn commit_storage_changes<E: Evm<DB: DatabaseCommit>>(evm: &mut E, changes: &Has
         );
     }
 
+    // Use nonce=1 to prevent the account from being treated as empty
+    // (EIP-161 state clear would delete it otherwise, discarding storage).
+    let mut info = AccountInfo::default();
+    info.nonce = 1;
+
     let account = Account {
-        info: AccountInfo::default(),
+        info,
         original_info: Box::default(),
         transaction_id: 0,
         storage,
         status: AccountStatus::Touched,
     };
 
-    evm.db_mut()
-        .commit_iter(&mut std::iter::once((PROCESSOR_ADDRESS, account)));
+    revm::state::EvmState::from_iter([(PROCESSOR_ADDRESS, account)])
 }
+
 
 fn glint_err(msg: impl Into<Box<dyn core::error::Error + Send + Sync>>) -> BlockExecutionError {
     BlockExecutionError::Internal(InternalBlockExecutionError::Other(msg.into()))
