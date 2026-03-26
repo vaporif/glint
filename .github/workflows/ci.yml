@@ -32,7 +32,7 @@ jobs:
 
       - uses: cachix/cachix-action@v17
         with:
-          name: mote
+          name: glint
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: Nix flake checks
@@ -51,7 +51,7 @@ jobs:
 
       - uses: cachix/cachix-action@v17
         with:
-          name: mote
+          name: glint
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - uses: Swatinem/rust-cache@v2
@@ -72,7 +72,7 @@ jobs:
 
       - uses: cachix/cachix-action@v17
         with:
-          name: mote
+          name: glint
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - uses: Swatinem/rust-cache@v2
@@ -97,7 +97,7 @@ jobs:
 
       - uses: cachix/cachix-action@v17
         with:
-          name: mote
+          name: glint
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: Nix build

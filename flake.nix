@@ -35,7 +35,7 @@
 
       commonArgs = {
         inherit src;
-        pname = "mote";
+        pname = "glint";
         strictDeps = true;
         nativeBuildInputs =
           [
@@ -58,7 +58,7 @@
 
       cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
-      mote = craneLib.buildPackage (commonArgs
+      glint = craneLib.buildPackage (commonArgs
         // {
           inherit cargoArtifacts;
         });
@@ -73,13 +73,13 @@
       ];
     in {
       packages = {
-        default = mote;
+        default = glint;
       };
 
       checks = {
         fmt = craneLib.cargoFmt {
           inherit src;
-          pname = "mote";
+          pname = "glint";
         };
 
         taplo =

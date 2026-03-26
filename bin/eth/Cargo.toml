@@ -1,23 +1,23 @@
 [package]
-name = "mote-node-eth"
+name = "glint-node-eth"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Mote Ethereum node binary"
+description = "Glint Ethereum node binary"
 repository.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
 [[bin]]
-name = "mote-node-eth"
+name = "glint-node-eth"
 path = "src/main.rs"
 
 [dependencies]
-mote-engine = { path = "../../crates/mote-engine" }
-mote-exex = { path = "../../crates/mote-exex" }
-mote-node = { path = "../../crates/mote-node" }
+glint-engine = { path = "../../crates/glint-engine" }
+glint-exex = { path = "../../crates/glint-exex" }
+glint-node = { path = "../../crates/glint-node" }
 
 reth-ethereum.workspace = true
 

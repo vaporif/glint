@@ -3,7 +3,7 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 
 use clap::{Args, Parser};
-use mote_engine::executor::MoteEvmConfig;
+use glint_engine::executor::GlintEvmConfig;
 use reth_node_builder::BuilderContext;
 use reth_optimism_cli::Cli;
 use reth_optimism_cli::chainspec::OpChainSpecParser;
@@ -12,16 +12,16 @@ use reth_optimism_node::OpNode;
 use reth_optimism_node::args::RollupArgs;
 use tracing::info;
 
-use mote_node::cli::MoteArgs;
-use mote_node::genesis::extract_mote_config;
+use glint_node::cli::GlintArgs;
+use glint_node::genesis::extract_glint_config;
 
 #[derive(Debug, Args)]
-struct MoteOpArgs {
+struct GlintOpArgs {
     #[command(flatten)]
     rollup: RollupArgs,
 
     #[command(flatten)]
-    mote: MoteArgs,
+    glint: GlintArgs,
 }
 
 fn main() {
@@ -33,14 +33,14 @@ fn main() {
     }
 
     if let Err(err) =
-        Cli::<OpChainSpecParser, MoteOpArgs>::parse().run(async move |builder, ext| {
+        Cli::<OpChainSpecParser, GlintOpArgs>::parse().run(async move |builder, ext| {
             let chain_spec = Arc::clone(&builder.config().chain);
             let genesis_json = serde_json::to_value(chain_spec.genesis())?;
-            let config = extract_mote_config(&genesis_json)?;
-            info!(?config, "loaded mote chain config");
+            let config = extract_glint_config(&genesis_json)?;
+            info!(?config, "loaded glint chain config");
 
-            let enable_exex = !ext.mote.disable_exex();
-            let socket_path = ext.mote.exex_socket_path.clone();
+            let enable_exex = !ext.glint.disable_exex();
+            let socket_path = ext.glint.exex_socket_path.clone();
             let rollup_args = ext.rollup;
 
             let op_node = OpNode::new(rollup_args);
@@ -51,7 +51,7 @@ fn main() {
                     .with_components(op_node.components().executor(
                         move |ctx: &BuilderContext<_>| {
                             let tip_block = ctx.head().number;
-                            let expiration_index = mote_engine::recovery::rebuild_expiration_index(
+                            let expiration_index = glint_engine::recovery::rebuild_expiration_index(
                                 ctx.provider(),
                                 &config,
                                 tip_block,
@@ -61,7 +61,7 @@ fn main() {
                             async move {
                                 let shared_index = Arc::new(Mutex::new(expiration_index?));
 
-                                Ok(MoteEvmConfig::new(
+                                Ok(GlintEvmConfig::new(
                                     OpEvmConfig::optimism(chain_spec),
                                     config,
                                     shared_index,
@@ -70,8 +70,8 @@ fn main() {
                         },
                     ))
                     .with_add_ons(reth_optimism_node::OpAddOns::default())
-                    .install_exex_if(enable_exex, "mote", move |ctx| {
-                        let exex = mote_exex::install(socket_path);
+                    .install_exex_if(enable_exex, "glint", move |ctx| {
+                        let exex = glint_exex::install(socket_path);
                         async move { Ok(exex(ctx)) }
                     })
                     .launch_with_debug_capabilities()

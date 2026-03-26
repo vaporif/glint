@@ -19,7 +19,7 @@
     "cancunTime": 0,
     "terminalTotalDifficulty": 0,
     "terminalTotalDifficultyPassed": true,
-    "mote": {
+    "glint": {
       "max_btl": 302400,
       "max_ops_per_tx": 100,
       "max_payload_size": 131072,
@@ -27,7 +27,7 @@
       "max_annotation_key_size": 256,
       "max_annotation_value_size": 1024,
       "max_content_type_size": 128,
-      "processor_address": "0x000000000000000000000000000000006d6f7465"
+      "processor_address": "0x000000000000000000000000000000676c696e74"
     }
   },
   "difficulty": "0x0",

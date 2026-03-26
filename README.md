@@ -1,10 +1,10 @@
-# Mote
+# Glint
 
 [![CI](https://github.com/vaporif/quiver/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vaporif/quiver/actions/workflows/ci.yml)
 
 Ephemeral on-chain storage layer, built on reth.
 
-Mote adds a BTL (Blocks-to-Live) primitive to Ethereum. Entities have a TTL, carry queryable annotations, and disappear when their time is up.
+Glint adds a BTL (Blocks-to-Live) primitive to Ethereum. Entities have a TTL, carry queryable annotations, and disappear when their time is up.
 
 ## Why
 
@@ -14,13 +14,13 @@ Think intent protocols (UniswapX/CoW), ephemeral registries, oracle price feeds 
 
 ## Relationship to GolemBase
 
-Mote wouldn't exist without [GolemBase](https://github.com/Arkiv-Network/arkiv-op-geth) (also called Arkiv). The GolemBase team designed the core model - magic address interception, BTL expiration, content-addressed keys, annotation model, atomic ops, owner-gated mutations.
+Glint wouldn't exist without [GolemBase](https://github.com/Arkiv-Network/arkiv-op-geth) (also called Arkiv). The GolemBase team designed the core model - magic address interception, BTL expiration, content-addressed keys, annotation model, atomic ops, owner-gated mutations.
 
-Why rewrite instead of fork: GolemBase is an op-geth fork, and Optimism is phasing out op-geth in favor of reth. A geth fork is a dead end. Mote takes the same ideas and implements them as a reth plugin.
+Why rewrite instead of fork: GolemBase is an op-geth fork, and Optimism is phasing out op-geth in favor of reth. A geth fork is a dead end. Glint takes the same ideas and implements them as a reth plugin.
 
-Beyond the base change, Mote also fixes a few things:
+Beyond the base change, Glint also fixes a few things:
 
-| | GolemBase | Mote | Why |
+| | GolemBase | Glint | Why |
 |---|---|---|---|
 | Base | op-geth fork | reth plugin (BlockExecutor + ExEx) | Optimism is dropping op-geth. |
 | On-chain cost | ~96 bytes/entity (3 slots) | 64 bytes/entity (2 slots) | Moved the expiration index off-chain. 33% cheaper per entity. |
@@ -35,10 +35,10 @@ Beyond the base change, Mote also fixes a few things:
 
 ```mermaid
 graph TB
-    subgraph node["mote-node (reth)"]
+    subgraph node["glint-node (reth)"]
         direction TB
 
-        subgraph engine["mote-engine (BlockExecutor)"]
+        subgraph engine["glint-engine (BlockExecutor)"]
             tx_in[/"User tx"/]
             check{To processor<br/>address?}
             crud["Entity CRUD<br/>trie writes (64 bytes)<br/>+ event logs"]
@@ -51,7 +51,7 @@ graph TB
             expire -.->|runs before<br/>each block| crud
         end
 
-        subgraph exex["mote-exex (ExEx)"]
+        subgraph exex["glint-exex (ExEx)"]
             notify["ExExNotification<br/>(commit/reorg)"]
             arrow["Entity event logs<br/>→ Arrow RecordBatch"]
             notify --> arrow
@@ -60,7 +60,7 @@ graph TB
         crud -->|committed block| notify
     end
 
-    subgraph analytics["mote-analytics (separate process)"]
+    subgraph analytics["glint-analytics (separate process)"]
         mem["In-memory Arrow tables<br/>(all live entities)"]
         df["DataFusion query engine"]
         flight["Flight SQL server"]
@@ -91,11 +91,11 @@ graph TB
     style clients fill:#fff3e0,stroke:#e65100,color:#1a2a3a
 ```
 
-`mote-engine` is a custom `BlockExecutor` inside reth. Transactions sent to a magic address (`0x...6d6f7465`, ASCII "mote") get intercepted as entity operations - create, update, delete, extend. Everything else goes through normal EVM execution. Each entity costs 64 bytes on-chain: 32 bytes of metadata (owner + expiration) and 32 bytes of content hash. Expired entities get cleaned up before each block's transactions run.
+`glint-engine` is a custom `BlockExecutor` inside reth. Transactions sent to a magic address (`0x...676c696e74`, ASCII "glint") get intercepted as entity operations - create, update, delete, extend. Everything else goes through normal EVM execution. Each entity costs 64 bytes on-chain: 32 bytes of metadata (owner + expiration) and 32 bytes of content hash. Expired entities get cleaned up before each block's transactions run.
 
-`mote-exex` watches committed blocks, converts entity event logs into Arrow RecordBatches, and pushes them over a unix socket. Pure output - no state of its own.
+`glint-exex` watches committed blocks, converts entity event logs into Arrow RecordBatches, and pushes them over a unix socket. Pure output - no state of its own.
 
-`mote-analytics` runs as a separate binary consuming that stream. In-memory table of all live entities, SQL via Flight SQL, JSON-RPC endpoint. If it crashes or falls behind, blocks keep getting produced - the node doesn't know or care.
+`glint-analytics` runs as a separate binary consuming that stream. In-memory table of all live entities, SQL via Flight SQL, JSON-RPC endpoint. If it crashes or falls behind, blocks keep getting produced - the node doesn't know or care.
 
 ### Why columnar (not row-oriented)
 
@@ -105,7 +105,7 @@ All the analytics queries are scans and filters - entities by annotation, aggreg
 
 Arrow is the in-memory format at every stage - from ExEx output through query execution. Nothing gets serialized or copied between formats.
 
-| | SQLite (GolemBase) | DataFusion + Arrow (Mote) |
+| | SQLite (GolemBase) | DataFusion + Arrow (Glint) |
 |---|---|---|
 | Isolation | In-process goroutine. If it dies, queries silently go stale with no health check or recovery. | Separate process. Can OOM or panic without touching block production. |
 | Data format | Row-oriented. Every ingest serializes into SQLite's B-tree pages. | Columnar RecordBatches end-to-end. Zero-copy from ExEx through query execution. |
@@ -115,7 +115,7 @@ Arrow is the in-memory format at every stage - from ExEx output through query ex
 | Extensibility | Ad-hoc SQL schema, manual query plumbing. | Implement DataFusion's `TableProvider` trait, get full SQL with pushdown filters. |
 | License | Varies by binding | Apache 2.0, same as reth. |
 
-Other query engines considered for mote-analytics:
+Other query engines considered for glint-analytics:
 
 - DuckDB - C++ with Rust FFI. Mature and fast, but adds a C++ dependency to the build and ~30MB to the binary. Arrow zero-copy works well, but DataFusion gets the same thing without leaving Rust.
 - SpacetimeDB - standalone server, can't use it as a library. The abstraction layer adds milliseconds of latency where DataFusion does microseconds. BSL licensed.
@@ -129,7 +129,7 @@ Other query engines considered for mote-analytics:
 
 ### Entity lifecycle
 
-1. **Create** - Send a transaction to the processor address with RLP-encoded `MoteTransaction` operations. The entity gets a deterministic key (`keccak256(tx_hash || payload_len || payload || op_index)`), 64 bytes written to trie, and a lifecycle event log emitted. The full payload lives only in the event log, not in the trie.
+1. **Create** - Send a transaction to the processor address with RLP-encoded `GlintTransaction` operations. The entity gets a deterministic key (`keccak256(tx_hash || payload_len || payload || op_index)`), 64 bytes written to trie, and a lifecycle event log emitted. The full payload lives only in the event log, not in the trie.
 
    A 32-byte content hash (`keccak256(payload || content_type || rlp(annotations))`) goes on-chain so clients can verify query results against the trie. A malicious sequencer can't serve altered data without the hash mismatch showing up in a Merkle proof.
 
@@ -145,11 +145,11 @@ Other query engines considered for mote-analytics:
 
 Everything in-memory rebuilds from the chain. No snapshots, no separate sync mode.
 
-On node restart, `mote-engine` scans MAX_BTL blocks of entity event logs from reth's database to reconstruct the expiration index. Log reading only, not EVM re-execution - at ~1 week of history (302,400 blocks at 2s) this takes seconds to a few minutes.
+On node restart, `glint-engine` scans MAX_BTL blocks of entity event logs from reth's database to reconstruct the expiration index. Log reading only, not EVM re-execution - at ~1 week of history (302,400 blocks at 2s) this takes seconds to a few minutes.
 
-On analytics restart, `mote-analytics` connects to the ExEx IPC stream and rebuilds from empty. The ExEx replays from its WAL checkpoint, and after MAX_BTL blocks from tip all live entities are reconstructed. Anything older is already expired. Crash, disconnect, fresh deploy - same path every time.
+On analytics restart, `glint-analytics` connects to the ExEx IPC stream and rebuilds from empty. The ExEx replays from its WAL checkpoint, and after MAX_BTL blocks from tip all live entities are reconstructed. Anything older is already expired. Crash, disconnect, fresh deploy - same path every time.
 
-If the ExEx's IPC buffer overflows (1024 batches, ~34 min of headroom at 2s blocks), it disconnects mote-analytics, which rebuilds from scratch on reconnect. If the ExEx itself panics, reth keeps producing blocks and the WAL retains notifications until the ExEx catches up.
+If the ExEx's IPC buffer overflows (1024 batches, ~34 min of headroom at 2s blocks), it disconnects glint-analytics, which rebuilds from scratch on reconnect. If the ExEx itself panics, reth keeps producing blocks and the WAL retains notifications until the ExEx catches up.
 
 ## License
 

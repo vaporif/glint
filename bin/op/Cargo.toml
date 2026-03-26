@@ -1,23 +1,23 @@
 [package]
-name = "mote-node-op"
+name = "glint-node-op"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Mote OP Stack node binary"
+description = "Glint OP Stack node binary"
 repository.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
 [[bin]]
-name = "mote-node-op"
+name = "glint-node-op"
 path = "src/main.rs"
 
 [dependencies]
-mote-engine = { path = "../../crates/mote-engine", features = ["op"] }
-mote-exex = { path = "../../crates/mote-exex" }
-mote-node = { path = "../../crates/mote-node" }
+glint-engine = { path = "../../crates/glint-engine", features = ["op"] }
+glint-exex = { path = "../../crates/glint-exex" }
+glint-node = { path = "../../crates/glint-node" }
 
 reth-optimism-node.workspace = true
 reth-optimism-evm.workspace = true

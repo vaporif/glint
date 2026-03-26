@@ -3,15 +3,15 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 
 use clap::Parser;
-use mote_engine::executor::MoteEvmConfig;
+use glint_engine::executor::GlintEvmConfig;
 use reth_ethereum::cli::Cli;
 use reth_ethereum::cli::chainspec::EthereumChainSpecParser;
 use reth_ethereum::evm::EthEvmConfig;
 use reth_ethereum::node::{EthereumAddOns, EthereumNode};
 use tracing::info;
 
-use mote_node::cli::MoteArgs;
-use mote_node::genesis::extract_mote_config;
+use glint_node::cli::GlintArgs;
+use glint_node::genesis::extract_glint_config;
 
 fn main() {
     reth_ethereum::cli::sigsegv_handler::install();
@@ -22,11 +22,11 @@ fn main() {
     }
 
     if let Err(err) =
-        Cli::<EthereumChainSpecParser, MoteArgs>::parse().run(async move |builder, ext| {
+        Cli::<EthereumChainSpecParser, GlintArgs>::parse().run(async move |builder, ext| {
             let chain_spec = Arc::clone(&builder.config().chain);
             let genesis_json = serde_json::to_value(chain_spec.genesis())?;
-            let config = extract_mote_config(&genesis_json)?;
-            info!(?config, "loaded mote chain config");
+            let config = extract_glint_config(&genesis_json)?;
+            info!(?config, "loaded glint chain config");
 
             let enable_exex = !ext.disable_exex();
             let socket_path = ext.exex_socket_path.clone();
@@ -36,7 +36,7 @@ fn main() {
                 .with_components(EthereumNode::components().executor(
                     move |ctx: &reth_ethereum::node::builder::BuilderContext<_>| {
                         let tip_block = ctx.head().number;
-                        let expiration_index = mote_engine::recovery::rebuild_expiration_index(
+                        let expiration_index = glint_engine::recovery::rebuild_expiration_index(
                             ctx.provider(),
                             &config,
                             tip_block,
@@ -46,7 +46,7 @@ fn main() {
                         async move {
                             let shared_index = Arc::new(Mutex::new(expiration_index?));
 
-                            Ok(MoteEvmConfig::new(
+                            Ok(GlintEvmConfig::new(
                                 EthEvmConfig::new(chain_spec),
                                 config,
                                 shared_index,
@@ -55,8 +55,8 @@ fn main() {
                     },
                 ))
                 .with_add_ons(EthereumAddOns::default())
-                .install_exex_if(enable_exex, "mote", move |ctx| {
-                    let exex = mote_exex::install(socket_path);
+                .install_exex_if(enable_exex, "glint", move |ctx| {
+                    let exex = glint_exex::install(socket_path);
                     async move { Ok(exex(ctx)) }
                 })
                 .launch_with_debug_capabilities()

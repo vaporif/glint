@@ -41,10 +41,10 @@ lint-actions:
     actionlint
 
 run-eth *args:
-    cargo run -p mote-node-eth -- node --chain etc/genesis.json {{args}}
+    cargo run -p glint-node-eth -- node --chain etc/genesis.json {{args}}
 
 run-op *args:
-    cargo run -p mote-node-op -- node --chain etc/genesis.json {{args}}
+    cargo run -p glint-node-op -- node --chain etc/genesis.json {{args}}
 
 run-analytics *args:
-    cargo run -p mote-analytics -- {{args}}
+    cargo run -p glint-analytics -- {{args}}

@@ -4379,6 +4379,141 @@ dependencies = [
 ]
 
 [[package]]
+name = "glint-analytics"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "arrow",
+ "arrow-flight",
+ "axum",
+ "bytes",
+ "clap",
+ "color-eyre",
+ "datafusion",
+ "eyre",
+ "futures",
+ "glint-primitives",
+ "prost",
+ "tokio",
+ "tonic",
+ "tower",
+ "tracing",
+ "tracing-subscriber 0.3.23",
+]
+
+[[package]]
+name = "glint-engine"
+version = "0.1.0"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-evm",
+ "alloy-op-evm",
+ "alloy-op-hardforks",
+ "alloy-primitives",
+ "alloy-rlp",
+ "alloy-sol-types",
+ "color-eyre",
+ "eyre",
+ "glint-primitives",
+ "parking_lot",
+ "reth-ethereum",
+ "reth-evm",
+ "reth-execution-types",
+ "reth-optimism-chainspec",
+ "reth-optimism-evm",
+ "reth-primitives-traits",
+ "reth-provider",
+ "reth-trie",
+ "revm",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "glint-exex"
+version = "0.1.0"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-primitives",
+ "arrow",
+ "borsh",
+ "eyre",
+ "futures",
+ "glint-primitives",
+ "reth-execution-types",
+ "reth-exex",
+ "reth-exex-types",
+ "reth-node-api",
+ "reth-primitives-traits",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "glint-node"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "clap",
+ "eyre",
+ "glint-engine",
+ "glint-primitives",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "glint-node-eth"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "glint-engine",
+ "glint-exex",
+ "glint-node",
+ "parking_lot",
+ "reth-ethereum",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
+name = "glint-node-op"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "glint-engine",
+ "glint-exex",
+ "glint-node",
+ "parking_lot",
+ "reth-cli-util",
+ "reth-node-builder",
+ "reth-optimism-cli",
+ "reth-optimism-evm",
+ "reth-optimism-node",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
+name = "glint-primitives"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-rlp",
+ "alloy-sol-types",
+ "eyre",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5981,141 +6116,6 @@ name = "more-asserts"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fafa6961cabd9c63bcd77a45d7e3b7f3b552b70417831fb0f56db717e72407e"
-
-[[package]]
-name = "mote-analytics"
-version = "0.1.0"
-dependencies = [
- "alloy-primitives",
- "arrow",
- "arrow-flight",
- "axum",
- "bytes",
- "clap",
- "color-eyre",
- "datafusion",
- "eyre",
- "futures",
- "mote-primitives",
- "prost",
- "tokio",
- "tonic",
- "tower",
- "tracing",
- "tracing-subscriber 0.3.23",
-]
-
-[[package]]
-name = "mote-engine"
-version = "0.1.0"
-dependencies = [
- "alloy-consensus",
- "alloy-eips",
- "alloy-evm",
- "alloy-op-evm",
- "alloy-op-hardforks",
- "alloy-primitives",
- "alloy-rlp",
- "alloy-sol-types",
- "color-eyre",
- "eyre",
- "mote-primitives",
- "parking_lot",
- "reth-ethereum",
- "reth-evm",
- "reth-execution-types",
- "reth-optimism-chainspec",
- "reth-optimism-evm",
- "reth-primitives-traits",
- "reth-provider",
- "reth-trie",
- "revm",
- "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "mote-exex"
-version = "0.1.0"
-dependencies = [
- "alloy-consensus",
- "alloy-eips",
- "alloy-primitives",
- "arrow",
- "borsh",
- "eyre",
- "futures",
- "mote-primitives",
- "reth-execution-types",
- "reth-exex",
- "reth-exex-types",
- "reth-node-api",
- "reth-primitives-traits",
- "tokio",
- "tokio-util",
- "tracing",
-]
-
-[[package]]
-name = "mote-node"
-version = "0.1.0"
-dependencies = [
- "alloy-primitives",
- "clap",
- "eyre",
- "mote-engine",
- "mote-primitives",
- "serde_json",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "mote-node-eth"
-version = "0.1.0"
-dependencies = [
- "clap",
- "mote-engine",
- "mote-exex",
- "mote-node",
- "parking_lot",
- "reth-ethereum",
- "serde_json",
- "tracing",
-]
-
-[[package]]
-name = "mote-node-op"
-version = "0.1.0"
-dependencies = [
- "clap",
- "mote-engine",
- "mote-exex",
- "mote-node",
- "parking_lot",
- "reth-cli-util",
- "reth-node-builder",
- "reth-optimism-cli",
- "reth-optimism-evm",
- "reth-optimism-node",
- "serde_json",
- "tracing",
-]
-
-[[package]]
-name = "mote-primitives"
-version = "0.1.0"
-dependencies = [
- "alloy-primitives",
- "alloy-rlp",
- "alloy-sol-types",
- "eyre",
- "regex",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tracing",
-]
 
 [[package]]
 name = "multiaddr"
