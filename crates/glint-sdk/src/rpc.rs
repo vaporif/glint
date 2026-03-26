@@ -5,7 +5,6 @@ use jsonrpsee::core::params::ArrayParams;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use serde::{Deserialize, Serialize};
 
-/// Entity info from the Glint RPC. Decoupled from the node crate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntityInfo {
@@ -16,7 +15,6 @@ pub struct EntityInfo {
     pub content_hash: B256,
 }
 
-/// Low-level JSON-RPC client for `glint_*` namespace.
 #[derive(Debug, Clone)]
 pub struct GlintRpcClient {
     client: HttpClient,

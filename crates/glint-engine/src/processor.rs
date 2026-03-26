@@ -16,7 +16,7 @@ pub struct RawContentSlices<'a> {
     pub numeric_annotations_rlp: &'a [u8],
 }
 
-/// Trait for trie reads/writes, mockable for tests.
+/// Mockable trie interface for the real executor (which goes through revm).
 pub trait EntityState {
     fn read_slot(&self, key: &B256) -> Option<U256>;
     fn write_slot(&mut self, key: B256, value: U256);

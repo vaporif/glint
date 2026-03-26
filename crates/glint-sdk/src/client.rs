@@ -2,9 +2,7 @@ use alloy_primitives::B256;
 
 use crate::rpc::{EntityInfo, GlintRpcClient};
 
-/// High-level Glint client. Read-only until alloy-signer is wired up.
-// TODO: add `create_entity`, `update_entity`, `extend_entity`, `delete_entity` methods
-// once alloy-signer / alloy-network are available as workspace deps for signing + sending txs.
+// TODO: add write methods once alloy-signer is a workspace dep
 #[derive(Debug, Clone)]
 pub struct GlintClient {
     rpc: GlintRpcClient,

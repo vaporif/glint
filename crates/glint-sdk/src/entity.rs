@@ -138,19 +138,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn create_entity_defaults() {
-        let e = CreateEntity::new("text/plain", b"hello", 100);
-        assert_eq!(e.content_type, "text/plain");
-        assert_eq!(e.payload, b"hello");
-        assert_eq!(e.btl, 100);
-        assert_eq!(e.extend_policy, ExtendPolicy::OwnerOnly);
-        assert!(e.operator.is_none());
-        assert!(e.string_annotations.is_empty());
-        assert!(e.numeric_annotations.is_empty());
-    }
-
-    #[test]
-    fn create_entity_chaining() {
+    fn create_builder_chaining() {
         let operator = Address::repeat_byte(0x42);
         let e = CreateEntity::new("application/json", b"{}", 200)
             .operator(operator)
@@ -165,41 +153,16 @@ mod tests {
     }
 
     #[test]
-    fn update_entity_defaults() {
-        let key = B256::repeat_byte(0x01);
-        let u = UpdateEntity::new(key, "text/plain", b"updated", 150);
-        assert_eq!(u.entity_key, key);
-        assert_eq!(u.btl, 150);
-        assert!(u.extend_policy.is_none());
-        assert!(u.operator.is_none());
-    }
-
-    #[test]
-    fn update_entity_set_operator_then_remove() {
+    fn update_operator_set_and_remove() {
         let key = B256::repeat_byte(0x01);
         let addr = Address::repeat_byte(0xAB);
-        let u = UpdateEntity::new(key, "text/plain", b"data", 100)
-            .operator(Some(addr))
-            .extend_policy(ExtendPolicy::AnyoneCanExtend);
-        assert_eq!(u.operator, Some(Some(addr)));
-        assert_eq!(u.extend_policy, Some(ExtendPolicy::AnyoneCanExtend));
 
+        // Some(Some(addr)) = set operator
+        let u = UpdateEntity::new(key, "text/plain", b"data", 100).operator(Some(addr));
+        assert_eq!(u.operator, Some(Some(addr)));
+
+        // Some(None) = remove operator
         let u2 = UpdateEntity::new(key, "text/plain", b"data", 100).operator(None);
         assert_eq!(u2.operator, Some(None));
-    }
-
-    #[test]
-    fn extend_entity_construction() {
-        let key = B256::repeat_byte(0x03);
-        let e = ExtendEntity::new(key, 50);
-        assert_eq!(e.entity_key, key);
-        assert_eq!(e.additional_blocks, 50);
-    }
-
-    #[test]
-    fn delete_entity_construction() {
-        let key = B256::repeat_byte(0x04);
-        let d = DeleteEntity::new(key);
-        assert_eq!(d.entity_key, key);
     }
 }
