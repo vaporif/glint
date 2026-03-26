@@ -67,7 +67,7 @@ where
             slot_counter_delta: 0,
         };
 
-        Self::process_creates(&mut acc, &decoded, sender, tx_hash, current_block);
+        Self::process_creates(&mut acc, &decoded, sender, tx_hash, current_block, self.config.max_btl)?;
         self.process_updates(&mut acc, &decoded, sender, current_block)?;
         self.process_deletes(&mut acc, &decoded.tx.deletes, sender)?;
         self.process_extends(&mut acc, &decoded.tx.extends, current_block)?;
@@ -77,10 +77,14 @@ where
 
     pub(super) fn commit_crud(
         &mut self,
-        acc: CrudAccumulator,
+        mut acc: CrudAccumulator,
     ) -> Result<Vec<Log>, BlockExecutionError> {
+        super::update_slot_counter(
+            self.inner.evm_mut(),
+            acc.slot_counter_delta,
+            &mut acc.state_changes,
+        )?;
         commit_storage_changes(self.inner.evm_mut(), &acc.state_changes);
-        super::update_slot_counter(self.inner.evm_mut(), acc.slot_counter_delta)?;
 
         let mut exp_idx = self.expiration_index.lock();
         for change in acc.exp_changes {
@@ -99,7 +103,8 @@ where
         sender: alloy_primitives::Address,
         tx_hash: B256,
         current_block: u64,
-    ) {
+        max_btl: u64,
+    ) -> Result<(), BlockExecutionError> {
         for (op_index, (create, slices)) in decoded
             .tx
             .creates
@@ -107,6 +112,10 @@ where
             .zip(&decoded.create_slices)
             .enumerate()
         {
+            if create.btl > max_btl {
+                return Err(mote_err("create BTL exceeds chain max_btl"));
+            }
+
             let entity_key = derive_entity_key(
                 &tx_hash,
                 &create.payload,
@@ -156,6 +165,7 @@ where
 
             acc.slot_counter_delta += crate::slot_counter::SLOTS_PER_ENTITY.cast_signed();
         }
+        Ok(())
     }
 
     fn process_updates(
@@ -169,6 +179,10 @@ where
             let old_meta = self.read_entity_metadata(&update.entity_key)?;
             if old_meta.owner != sender {
                 return Err(mote_err("sender is not the entity owner"));
+            }
+
+            if update.btl > self.config.max_btl {
+                return Err(mote_err("update BTL exceeds chain max_btl"));
             }
 
             let new_expires = current_block + update.btl;

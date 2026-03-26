@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/vaporif/quiver/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vaporif/quiver/actions/workflows/ci.yml)
 
-Ephemeral on-chain storage as an OP Stack L3, built on reth.
+Ephemeral on-chain storage layer, built on reth.
 
 Mote adds a BTL (Blocks-to-Live) primitive to Ethereum. Entities have a TTL, carry queryable annotations, and disappear when their time is up.
 
@@ -35,7 +35,7 @@ Beyond the base change, Mote also fixes a few things:
 
 ```mermaid
 graph TB
-    subgraph node["mote-node (reth + OP Stack L3)"]
+    subgraph node["mote-node (reth)"]
         direction TB
 
         subgraph engine["mote-engine (BlockExecutor)"]

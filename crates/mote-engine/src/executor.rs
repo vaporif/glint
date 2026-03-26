@@ -83,7 +83,7 @@ where
         let factory = MoteBlockExecutorFactory {
             inner: inner_factory,
             expiration_index,
-            config,
+            config: Arc::new(config),
         };
         Self { inner, factory }
     }
@@ -93,7 +93,7 @@ where
 pub struct MoteBlockExecutorFactory<F> {
     inner: F,
     expiration_index: SharedExpirationIndex,
-    config: MoteChainConfig,
+    config: Arc<MoteChainConfig>,
 }
 
 impl<Inner: ConfigureEvm> ConfigureEvm for MoteEvmConfig<Inner>
@@ -201,7 +201,7 @@ where
 pub struct MoteBlockExecutor<InnerExec, RB> {
     inner: InnerExec,
     expiration_index: SharedExpirationIndex,
-    config: MoteChainConfig,
+    config: Arc<MoteChainConfig>,
     pending_logs: Vec<Log>,
     _marker: PhantomData<RB>,
 }
@@ -425,8 +425,12 @@ where
             let expired_slots =
                 (state_changes.len() as u64 / 2) * crate::slot_counter::SLOTS_PER_ENTITY;
 
+            update_slot_counter(
+                self.inner.evm_mut(),
+                -(expired_slots.cast_signed()),
+                &mut state_changes,
+            )?;
             commit_storage_changes(self.inner.evm_mut(), &state_changes);
-            update_slot_counter(self.inner.evm_mut(), -(expired_slots.cast_signed()))?;
         }
 
         Ok(())
@@ -436,15 +440,15 @@ where
 fn update_slot_counter<E: Evm<DB: DatabaseCommit + revm::Database<Error: core::fmt::Display>>>(
     evm: &mut E,
     delta: i64,
+    state_changes: &mut HashMap<B256, U256>,
 ) -> Result<(), BlockExecutionError> {
-    use crate::slot_counter::used_slots_key;
     use revm::Database as _;
 
     if delta == 0 {
         return Ok(());
     }
 
-    let counter_slot = used_slots_key();
+    let counter_slot = *crate::slot_counter::USED_SLOTS_KEY;
     let current = evm
         .db_mut()
         .storage(PROCESSOR_ADDRESS, U256::from_be_bytes(counter_slot.0))
@@ -456,7 +460,7 @@ fn update_slot_counter<E: Evm<DB: DatabaseCommit + revm::Database<Error: core::f
         current.saturating_sub(U256::from((-delta).cast_unsigned()))
     };
 
-    commit_storage_changes(evm, &HashMap::from([(counter_slot, new_value)]));
+    state_changes.insert(counter_slot, new_value);
     Ok(())
 }
 
