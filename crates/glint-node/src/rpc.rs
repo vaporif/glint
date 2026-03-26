@@ -106,7 +106,7 @@ where
             .map_err(|e| internal_err(format!("failed to get latest state: {e}")))?;
 
         let count_value = state
-            .storage(PROCESSOR_ADDRESS, *ENTITY_COUNT_KEY)
+            .storage(PROCESSOR_ADDRESS, ENTITY_COUNT_KEY)
             .map_err(|e| internal_err(format!("failed to read entity count slot: {e}")))?;
 
         let count: u64 = count_value

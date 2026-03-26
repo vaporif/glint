@@ -460,7 +460,7 @@ fn update_slot_counter<E: Evm<DB: DatabaseCommit + revm::Database<Error: core::f
         return Ok(());
     }
 
-    let counter_slot = *crate::slot_counter::USED_SLOTS_KEY;
+    let counter_slot = crate::slot_counter::USED_SLOTS_KEY;
     let current = evm
         .db_mut()
         .storage(PROCESSOR_ADDRESS, U256::from_be_bytes(counter_slot.0))
@@ -487,7 +487,7 @@ fn update_entity_counter<E: Evm<DB: DatabaseCommit + revm::Database<Error: core:
         return Ok(());
     }
 
-    let counter_slot = *crate::slot_counter::ENTITY_COUNT_KEY;
+    let counter_slot = crate::slot_counter::ENTITY_COUNT_KEY;
     let current = evm
         .db_mut()
         .storage(PROCESSOR_ADDRESS, U256::from_be_bytes(counter_slot.0))
