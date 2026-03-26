@@ -23,6 +23,8 @@ struct MoteOpArgs {
 }
 
 fn main() {
+    reth_cli_util::sigsegv_handler::install();
+
     if std::env::var_os("RUST_BACKTRACE").is_none() {
         // SAFETY: single-threaded at this point, before tokio runtime starts
         unsafe { std::env::set_var("RUST_BACKTRACE", "1") };

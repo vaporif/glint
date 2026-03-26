@@ -6090,6 +6090,7 @@ dependencies = [
  "mote-engine",
  "mote-exex",
  "mote-node",
+ "reth-cli-util",
  "reth-node-builder",
  "reth-optimism-cli",
  "reth-optimism-evm",
