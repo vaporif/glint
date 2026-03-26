@@ -82,10 +82,7 @@ where
         commit_storage_changes(self.inner.evm_mut(), &acc.state_changes);
         super::update_slot_counter(self.inner.evm_mut(), acc.slot_counter_delta)?;
 
-        let mut exp_idx = self
-            .expiration_index
-            .lock()
-            .map_err(|e| mote_err(format!("lock: {e}")))?;
+        let mut exp_idx = self.expiration_index.lock();
         for change in acc.exp_changes {
             match change {
                 ExpirationChange::Insert(block, key) => exp_idx.insert(block, key),

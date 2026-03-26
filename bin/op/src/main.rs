@@ -1,4 +1,6 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+
+use parking_lot::Mutex;
 
 use clap::{Args, Parser};
 use mote_engine::executor::MoteEvmConfig;

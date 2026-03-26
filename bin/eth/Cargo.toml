@@ -21,6 +21,7 @@ mote-node = { path = "../../crates/mote-node" }
 
 reth-ethereum.workspace = true
 
+parking_lot.workspace = true
 clap.workspace = true
 serde_json.workspace = true
 tracing.workspace = true

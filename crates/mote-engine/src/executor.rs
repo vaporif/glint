@@ -19,6 +19,7 @@ use mote_primitives::{
     entity::EntityMetadata,
     storage::{entity_content_hash_key, entity_storage_key},
 };
+use parking_lot::Mutex;
 use reth_evm::{
     ConfigureEngineEvm, ConfigureEvm, Evm, EvmEnvFor, ExecutableTxIterator, ExecutionCtxFor,
     OnStateHook,
@@ -30,12 +31,7 @@ use revm::{
     context::result::{ExecutionResult, ResultAndState},
     state::{Account, AccountInfo, AccountStatus, EvmStorageSlot},
 };
-use std::{
-    collections::HashMap,
-    fmt,
-    marker::PhantomData,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, fmt, marker::PhantomData, sync::Arc};
 
 pub use decode::{DecodedMoteTransaction, decode_with_raw_slices};
 pub use eth::EthMoteResultBuilder;
@@ -68,33 +64,10 @@ pub trait MoteResultBuilder: Send + Sync + 'static {
     ) -> Self::Result;
 }
 
+#[derive(Debug, Clone)]
 pub struct MoteEvmConfig<Inner: ConfigureEvm> {
     inner: Inner,
     factory: MoteBlockExecutorFactory<Inner::BlockExecutorFactory>,
-}
-
-impl<Inner: ConfigureEvm> fmt::Debug for MoteEvmConfig<Inner>
-where
-    Inner::BlockExecutorFactory: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("MoteEvmConfig")
-            .field("inner", &self.inner)
-            .field("factory", &self.factory)
-            .finish()
-    }
-}
-
-impl<Inner: ConfigureEvm> Clone for MoteEvmConfig<Inner>
-where
-    Inner::BlockExecutorFactory: Clone,
-{
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            factory: self.factory.clone(),
-        }
-    }
 }
 
 impl<Inner: ConfigureEvm> MoteEvmConfig<Inner>
@@ -118,9 +91,9 @@ where
 
 #[derive(Debug, Clone)]
 pub struct MoteBlockExecutorFactory<F> {
-    pub(crate) inner: F,
-    pub(crate) expiration_index: SharedExpirationIndex,
-    pub(crate) config: MoteChainConfig,
+    inner: F,
+    expiration_index: SharedExpirationIndex,
+    config: MoteChainConfig,
 }
 
 impl<Inner: ConfigureEvm> ConfigureEvm for MoteEvmConfig<Inner>
@@ -227,10 +200,10 @@ where
 
 pub struct MoteBlockExecutor<InnerExec, RB> {
     inner: InnerExec,
-    _rb: PhantomData<RB>,
     expiration_index: SharedExpirationIndex,
     config: MoteChainConfig,
     pending_logs: Vec<Log>,
+    _marker: PhantomData<RB>,
 }
 
 const MOTE_GAS_PER_CREATE: u64 = 50_000;
@@ -398,10 +371,7 @@ where
 
         let current_block: u64 = self.inner.evm().block().number().saturating_to();
 
-        let mut exp_idx = self
-            .expiration_index
-            .lock()
-            .map_err(|e| mote_err(format!("expiration index lock: {e}")))?;
+        let mut exp_idx = self.expiration_index.lock();
 
         if let Some(last) = exp_idx.last_drained_block()
             && current_block <= last

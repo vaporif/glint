@@ -29,6 +29,7 @@ reth-trie = { workspace = true }
 color-eyre = { workspace = true }
 eyre = { workspace = true }
 thiserror = { workspace = true }
+parking_lot = { workspace = true }
 tracing = { workspace = true }
 
 # OP Stack support (optional)

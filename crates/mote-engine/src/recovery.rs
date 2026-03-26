@@ -53,8 +53,9 @@ impl LiveEntityTracker {
         &self.entities
     }
 
-    pub fn into_expiration_pairs(self) -> impl Iterator<Item = (B256, u64)> {
-        self.entities.into_iter()
+    #[must_use]
+    pub fn into_inner(self) -> HashMap<B256, u64> {
+        self.entities
     }
 }
 
@@ -79,7 +80,6 @@ where
     );
 
     let mut tracker = LiveEntityTracker::new();
-    let mut blocks_scanned: u64 = 0;
 
     for block_num in start_block..=tip_block {
         if let Some(receipts) = provider.receipts_by_block(BlockHashOrNumber::Number(block_num))? {
@@ -101,7 +101,7 @@ where
             }
         }
 
-        blocks_scanned += 1;
+        let blocks_scanned = block_num - start_block + 1;
         if total > 0 && blocks_scanned.is_multiple_of(10_000) {
             let pct = (blocks_scanned * 100) / total;
             info!("cold-start recovery: {blocks_scanned}/{total} blocks scanned ({pct}%)");
@@ -110,7 +110,7 @@ where
 
     let entity_count = tracker.live_entities().len();
     let mut index = ExpirationIndex::new();
-    index.rebuild_from_logs(tracker.into_expiration_pairs());
+    index.rebuild_from_logs(tracker.into_inner().into_iter());
 
     info!(entity_count, "expiration index rebuilt");
     Ok(index)
