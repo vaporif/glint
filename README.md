@@ -31,7 +31,7 @@ Beyond the base change, Glint also fixes a few things:
 | MAX_BTL | Not enforced | Enforced at txpool + execution | Without it, entities live forever. The "ephemeral" thing falls apart. |
 | Extend | Permissionless, no cap | Per-entity policy (anyone or owner/operator), capped at MAX_BTL | Arkiv lets anyone extend any entity to infinity. Glint lets the creator choose. |
 | Operator delegation | None | Optional operator per entity | Operator can update content and delete, but can't change permissions. So your backend can manage your entities without owning them. |
-| ChangeOwner | Supported | Removed | Delete + recreate is simpler, doesn't break external key references |
+| ChangeOwner | Supported | Removed | Delete + recreate is simpler, doesn't break external key references (might add though + operator change) |
 
 ## Architecture
 
