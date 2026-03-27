@@ -97,7 +97,7 @@ graph TB
 
 `glint-exex` watches committed blocks, converts entity event logs into Arrow RecordBatches, and pushes them over a unix socket. No state of its own.
 
-`glint-analytics` is a separate binary that consumes that stream. It holds all live entities in memory as Arrow columnar data with secondary indexes on annotations. Queries go through DataFusion and Flight SQL, plus a JSON-RPC endpoint. If it crashes or falls behind, blocks keep producing - the node doesn't know or care.
+`glint-analytics` is a separate binary that consumes that stream. It holds all live entities in memory as Arrow columnar data with roaring bitmap indexes on owner, string annotations, and numeric annotations (hash + B-tree for range queries). Queries go through DataFusion and Flight SQL, plus a JSON-RPC endpoint. If it crashes or falls behind, blocks keep producing - the node doesn't know or care.
 
 ### Query engine
 
@@ -107,9 +107,9 @@ Entity data is stored as Arrow RecordBatches - columnar, cache-friendly. DataFus
 
 Pure columnar has a problem though: annotation lookups ("find all USDC/WETH orders where price > 3500") hit every row. GolemBase solved this with SQLite bitmap indexes but gave up columnar analytics in the process.
 
-The plan is to add secondary indexes alongside the Arrow data - hash indexes on annotation key/value pairs, a B-tree for numeric range queries, backed by roaring bitmaps. A custom DataFusion `TableProvider` checks incoming filters against these indexes. If a filter matches an indexed field, it resolves via lookup in microseconds. If not, DataFusion does a full columnar scan, which is still fast for analytics. One engine, one copy of the data.
+Secondary indexes sit alongside the Arrow data - hash indexes on annotation key/value pairs and owner, a B-tree for numeric range queries, all backed by roaring bitmaps. A custom DataFusion `TableProvider` checks incoming filters against these indexes. If a filter matches an indexed field, it resolves via bitmap lookup in microseconds. If not, DataFusion does a full columnar scan, which is still fast for analytics. One engine, one copy of the data.
 
-> The current implementation uses in-memory Arrow tables with custom UDFs and no indexes. It works but full-scans every query. The indexed `TableProvider` is the planned fix.
+Supported indexed operations: equality and inequality on `owner`, `str_ann()`, and `num_ann()`; range queries (`>`, `>=`, `<`, `<=`) on numeric annotations; `IN` lists on all indexed fields; `AND`/`OR` combinations. Unrecognized filters fall through to DataFusion's post-scan filtering.
 
 <details>
 <summary>Other query engines considered</summary>
