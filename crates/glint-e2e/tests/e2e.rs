@@ -22,7 +22,7 @@ async fn test_create_entity() -> eyre::Result<()> {
 
     let wallet = dev_wallet();
     let expected_owner = wallet.default_signer().address();
-    let client = Glint::with_wallet(node.rpc_url(), wallet)?;
+    let client = Glint::connect_with_wallet(node.rpc_url(), wallet)?;
 
     let payload = b"hello glint";
     let btl: u64 = 100;
@@ -76,7 +76,7 @@ async fn test_flight_sql_query() -> eyre::Result<()> {
         .await
         .expect("spawn_blocking panicked")?;
 
-    let mut client = Glint::builder(node.rpc_url())
+    let client = Glint::builder(node.rpc_url())
         .wallet(dev_wallet())
         .flight_url(&analytics.flight_url())
         .build()

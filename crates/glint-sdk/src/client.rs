@@ -5,6 +5,7 @@ use alloy_primitives::{B256, U256};
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use alloy_rlp::Encodable;
 use alloy_rpc_types_eth::TransactionReceipt;
+use tokio::sync::Mutex;
 
 use glint_primitives::constants::PROCESSOR_ADDRESS;
 use glint_primitives::entity::EntityInfo;
@@ -28,7 +29,7 @@ impl sealed::State for ReadWrite {}
 pub struct Glint<S: sealed::State = ReadOnly> {
     provider: DynProvider<Ethereum>,
     gas_limit: u64,
-    flight: Option<crate::flight_sql::GlintFlightClient>,
+    flight: Option<Mutex<crate::flight_sql::GlintFlightClient>>,
     _state: PhantomData<S>,
 }
 
@@ -40,7 +41,7 @@ impl Glint<ReadOnly> {
 }
 
 impl Glint<ReadWrite> {
-    pub fn with_wallet(rpc_url: &str, wallet: EthereumWallet) -> eyre::Result<Self> {
+    pub fn connect_with_wallet(rpc_url: &str, wallet: EthereumWallet) -> eyre::Result<Self> {
         let provider = ProviderBuilder::new()
             .wallet(wallet)
             .connect_http(rpc_url.parse()?);
@@ -109,14 +110,14 @@ impl<S: sealed::State> Glint<S> {
     }
 
     pub async fn query(
-        &mut self,
+        &self,
         sql: &str,
     ) -> eyre::Result<Vec<arrow::record_batch::RecordBatch>> {
         let flight = self
             .flight
-            .as_mut()
+            .as_ref()
             .ok_or_else(|| eyre::eyre!("flight SQL not configured — use builder with .flight_url()"))?;
-        flight.query(sql).await
+        flight.lock().await.query(sql).await
     }
 }
 
@@ -166,6 +167,21 @@ impl<S: sealed::State> GlintBuilder<S> {
         self.flight_url = Some(url.to_owned());
         self
     }
+
+    async fn finish(
+        gas_limit: u64,
+        flight_url: Option<String>,
+        client: Glint<S>,
+    ) -> eyre::Result<Glint<S>> {
+        let mut client = client;
+        client.gas_limit = gas_limit;
+        if let Some(ref flight_url) = flight_url {
+            client.flight = Some(Mutex::new(
+                crate::flight_sql::GlintFlightClient::connect(flight_url.as_str()).await?,
+            ));
+        }
+        Ok(client)
+    }
 }
 
 impl GlintBuilder<ReadOnly> {
@@ -183,13 +199,7 @@ impl GlintBuilder<ReadOnly> {
     pub async fn build(self) -> eyre::Result<Glint<ReadOnly>> {
         let url = self.rpc_url.parse()?;
         let provider = ProviderBuilder::new().connect_http(url);
-        let mut client = Glint::<ReadOnly>::from_provider(provider);
-        client.gas_limit = self.gas_limit;
-        if let Some(ref flight_url) = self.flight_url {
-            client.flight =
-                Some(crate::flight_sql::GlintFlightClient::connect(flight_url.as_str()).await?);
-        }
-        Ok(client)
+        Self::finish(self.gas_limit, self.flight_url, Glint::from_provider(provider)).await
     }
 }
 
@@ -198,14 +208,6 @@ impl GlintBuilder<ReadWrite> {
         let wallet = self.wallet.expect("wallet set by typestate");
         let url = self.rpc_url.parse()?;
         let provider = ProviderBuilder::new().wallet(wallet).connect_http(url);
-        let mut client = Glint::<ReadWrite>::from_provider(provider);
-        client.gas_limit = self.gas_limit;
-        if let Some(ref flight_url) = self.flight_url {
-            client.flight =
-                Some(crate::flight_sql::GlintFlightClient::connect(flight_url.as_str()).await?);
-        }
-        Ok(client)
+        Self::finish(self.gas_limit, self.flight_url, Glint::from_provider(provider)).await
     }
 }
-
-pub type GlintClient = Glint<ReadWrite>;
