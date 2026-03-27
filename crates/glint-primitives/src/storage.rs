@@ -50,10 +50,12 @@ pub fn decode_operator_value(value: U256) -> Address {
     Address::from_slice(&bytes[..ADDRESS_LEN])
 }
 
-/// Hash raw RLP slices with length-prefix separation for each field.
+/// Hash raw RLP slices directly without re-encoding.
 ///
-/// Each field is preceded by its 4-byte big-endian length to prevent
-/// boundary-shifting attacks where bytes move between adjacent fields.
+/// RLP is self-delimiting so bare concatenation would technically be
+/// unambiguous, but we prepend each field's length anyway — it's cheap
+/// and means correctness doesn't silently depend on the raw slices
+/// being perfectly canonical.
 pub fn compute_content_hash_from_raw(
     payload_rlp: &[u8],
     content_type_rlp: &[u8],
