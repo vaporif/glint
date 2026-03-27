@@ -1,4 +1,4 @@
-use alloy_primitives::{keccak256, Address, B256, U256};
+use alloy_primitives::{Address, B256, U256, keccak256};
 
 const STORAGE_PREFIX: &[u8] = b"glintEntityMetaData";
 const OPERATOR_PREFIX: &[u8] = b"glintOperator";
@@ -32,11 +32,13 @@ pub fn entity_operator_key(entity_key: &B256) -> B256 {
     keccak256(&preimage)
 }
 
+const ADDRESS_LEN: usize = 20;
+
 /// Left-aligned: `address (20) || zero-pad (12)`.
 #[must_use]
 pub fn encode_operator_value(addr: Address) -> U256 {
     let mut bytes = [0u8; 32];
-    bytes[0..20].copy_from_slice(addr.as_slice());
+    bytes[..ADDRESS_LEN].copy_from_slice(addr.as_slice());
     U256::from_be_bytes(bytes)
 }
 
@@ -44,7 +46,7 @@ pub fn encode_operator_value(addr: Address) -> U256 {
 #[must_use]
 pub fn decode_operator_value(value: U256) -> Address {
     let bytes: [u8; 32] = value.to_be_bytes();
-    Address::from_slice(&bytes[0..20])
+    Address::from_slice(&bytes[..ADDRESS_LEN])
 }
 
 /// Hash raw RLP slices — don't re-encode, non-canonical RLP would break determinism.
