@@ -4,7 +4,8 @@ use alloy_signer_local::PrivateKeySigner;
 use glint_e2e::analytics_handle::AnalyticsHandle;
 use glint_e2e::eth_node_handle::EthNodeHandle;
 use glint_primitives::entity::derive_entity_key;
-use glint_sdk::{CreateEntity, Glint};
+use glint_primitives::transaction::{Create, GlintTransaction};
+use glint_sdk::Glint;
 
 const DEV_KEY: &str = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
@@ -26,11 +27,10 @@ async fn test_create_entity() -> eyre::Result<()> {
 
     let payload = b"hello glint";
     let btl: u64 = 100;
-    let create = CreateEntity::new("text/plain", payload, btl).string_annotation("app", "e2e-test");
+    let tx = GlintTransaction::new()
+        .create(Create::new("text/plain", payload, btl).string_annotation("app", "e2e-test"));
 
-    let receipt = client
-        .send_glint_transaction(&[create], &[], &[], &[], &[])
-        .await?;
+    let receipt = client.send(&tx).await?;
     assert!(receipt.status(), "glint tx should succeed");
 
     let tx_hash = receipt.transaction_hash;
@@ -82,12 +82,10 @@ async fn test_flight_sql_query() -> eyre::Result<()> {
         .build()
         .await?;
 
-    let create =
-        CreateEntity::new("text/plain", b"flight-sql-test", 100).string_annotation("app", "e2e");
+    let tx = GlintTransaction::new()
+        .create(Create::new("text/plain", b"flight-sql-test", 100).string_annotation("app", "e2e"));
 
-    let receipt = client
-        .send_glint_transaction(&[create], &[], &[], &[], &[])
-        .await?;
+    let receipt = client.send(&tx).await?;
     assert!(receipt.status(), "glint tx should succeed");
 
     wait_for_analytics_ready(&analytics).await?;

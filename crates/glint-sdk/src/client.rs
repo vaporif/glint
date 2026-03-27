@@ -5,15 +5,13 @@ use alloy_primitives::{B256, U256};
 use alloy_provider::{DynProvider, Provider, ProviderBuilder};
 use alloy_rlp::Encodable;
 use alloy_rpc_types_eth::TransactionReceipt;
+use glint_primitives::transaction::GlintTransaction;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use tokio::sync::Mutex;
 
 use glint_primitives::constants::PROCESSOR_ADDRESS;
 use glint_primitives::entity::EntityInfo;
 use glint_primitives::rpc::{BlockTiming, GlintApiClient};
-
-use crate::entity::{ChangeOwnerEntity, CreateEntity, DeleteEntity, ExtendEntity, UpdateEntity};
-use crate::tx::build_glint_transaction;
 
 const DEFAULT_GAS_LIMIT: u64 = 1_000_000;
 
@@ -107,15 +105,8 @@ impl<S: sealed::State> Glint<S> {
 }
 
 impl Glint<ReadWrite> {
-    pub async fn send_glint_transaction(
-        &self,
-        creates: &[CreateEntity],
-        updates: &[UpdateEntity],
-        deletes: &[DeleteEntity],
-        extends: &[ExtendEntity],
-        change_owners: &[ChangeOwnerEntity],
-    ) -> eyre::Result<TransactionReceipt> {
-        let tx = build_glint_transaction(creates, updates, deletes, extends, change_owners)?;
+    pub async fn send(&self, tx: &GlintTransaction) -> eyre::Result<TransactionReceipt> {
+        tx.validate()?;
 
         let mut calldata = Vec::new();
         tx.encode(&mut calldata);

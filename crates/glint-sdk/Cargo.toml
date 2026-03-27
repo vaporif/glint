@@ -15,7 +15,7 @@ workspace = true
 [dependencies]
 glint-primitives = { workspace = true, features = ["rpc"] }
 
-alloy-primitives = { workspace = true, features = ["rlp", "serde"] }
+alloy-primitives.workspace = true
 alloy-rlp.workspace = true
 alloy-provider.workspace = true
 alloy-network.workspace = true
