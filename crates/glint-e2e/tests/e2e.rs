@@ -8,7 +8,7 @@ use glint_primitives::entity::derive_entity_key;
 use glint_primitives::transaction::{Create, GlintTransaction};
 use glint_sdk::Glint;
 
-fn col<T: 'static>(batch: &RecordBatch, name: &str) -> &T {
+fn col<'a, T: 'static>(batch: &'a RecordBatch, name: &str) -> &'a T {
     batch
         .column_by_name(name)
         .unwrap_or_else(|| panic!("missing column: {name}"))

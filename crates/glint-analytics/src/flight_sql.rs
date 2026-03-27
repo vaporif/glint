@@ -18,16 +18,13 @@ use tonic::{Request, Response, Status, transport::Server};
 const MAX_QUERY_LENGTH: usize = 16_384;
 
 fn validate_read_only(query: &str) -> Result<(), Status> {
+    const READ_PREFIXES: &[&str] = &["SELECT", "EXPLAIN", "SHOW", "DESCRIBE", "WITH", "VALUES"];
     let trimmed = query.trim_start().to_ascii_uppercase();
-    if trimmed.starts_with("SELECT")
-        || trimmed.starts_with("EXPLAIN")
-        || trimmed.starts_with("SHOW")
-        || trimmed.starts_with("DESCRIBE")
-    {
+    if READ_PREFIXES.iter().any(|p| trimmed.starts_with(p)) {
         Ok(())
     } else {
         Err(Status::unimplemented(
-            "only SELECT, EXPLAIN, SHOW, and DESCRIBE queries are supported",
+            "only read-only queries (SELECT, EXPLAIN, SHOW, DESCRIBE, WITH, VALUES) are supported",
         ))
     }
 }
