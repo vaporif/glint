@@ -4599,6 +4599,7 @@ dependencies = [
  "eyre",
  "futures",
  "glint-primitives",
+ "jsonrpsee",
  "prost",
  "tokio",
  "tonic",

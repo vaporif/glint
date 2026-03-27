@@ -21,6 +21,7 @@ alloy-provider.workspace = true
 alloy-network.workspace = true
 alloy-rpc-types-eth.workspace = true
 
+jsonrpsee = { workspace = true, features = ["http-client"] }
 tokio = { workspace = true, features = ["full"] }
 eyre.workspace = true
 

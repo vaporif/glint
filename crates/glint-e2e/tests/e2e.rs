@@ -96,7 +96,10 @@ async fn test_flight_sql_query() -> eyre::Result<()> {
         .query("SELECT entity_key, content_type FROM entities")
         .await?;
 
-    let total_rows: usize = batches.iter().map(arrow::array::RecordBatch::num_rows).sum();
+    let total_rows: usize = batches
+        .iter()
+        .map(arrow::array::RecordBatch::num_rows)
+        .sum();
     assert!(
         total_rows >= 1,
         "expected at least 1 entity row from Flight SQL, got {total_rows}"
