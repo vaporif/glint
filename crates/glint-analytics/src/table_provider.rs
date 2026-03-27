@@ -442,12 +442,18 @@ pub fn create_session_context(
 
 /// `str_ann(string_annotations, 'key')` -- look up a string annotation by key, NULL if absent.
 #[derive(Debug, PartialEq, Eq, Hash)]
-struct StrAnnUdf {
+pub struct StrAnnUdf {
     signature: Signature,
 }
 
+impl Default for StrAnnUdf {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StrAnnUdf {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             signature: Signature::exact(
                 vec![
@@ -531,12 +537,18 @@ impl ScalarUDFImpl for StrAnnUdf {
 
 /// `num_ann(numeric_annotations, 'key')` -- look up a numeric annotation by key, NULL if absent.
 #[derive(Debug, PartialEq, Eq, Hash)]
-struct NumAnnUdf {
+pub struct NumAnnUdf {
     signature: Signature,
 }
 
+impl Default for NumAnnUdf {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NumAnnUdf {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             signature: Signature::exact(
                 vec![

@@ -38,6 +38,9 @@ glint-exex = { path = "crates/glint-exex" }
 glint-node = { path = "crates/glint-node" }
 glint-primitives = { path = "crates/glint-primitives" }
 glint-sdk = { path = "crates/glint-sdk" }
+glint-analytics = { path = "crates/glint-analytics" }
+glint-historical = { path = "crates/glint-historical" }
+rusqlite = { version = "0.35", features = ["bundled"] }
 
 alloy-primitives = { version = "1.5", features = ["borsh"] }
 alloy-rlp = { version = "0.3", features = ["derive"] }

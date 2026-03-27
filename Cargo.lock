@@ -3726,7 +3726,7 @@ dependencies = [
  "enr",
  "fnv",
  "futures",
- "hashlink",
+ "hashlink 0.11.0",
  "hex",
  "hkdf",
  "lazy_static",
@@ -4026,6 +4026,18 @@ dependencies = [
  "indenter",
  "once_cell",
 ]
+
+[[package]]
+name = "fallible-iterator"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649"
+
+[[package]]
+name = "fallible-streaming-iterator"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
 
 [[package]]
 name = "fastrand"
@@ -4422,17 +4434,35 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "arrow",
+ "bytes",
+ "datafusion",
+ "eyre",
+ "glint-primitives",
+ "roaring 0.10.12",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "glint-db-sidecar"
+version = "0.1.0"
+dependencies = [
+ "arrow",
  "arrow-flight",
  "axum",
- "bytes",
  "clap",
  "color-eyre",
  "datafusion",
  "eyre",
  "futures",
+ "glint-analytics",
+ "glint-historical",
  "glint-primitives",
+ "parking_lot",
  "prost",
- "roaring 0.10.12",
+ "rusqlite",
+ "serde_json",
+ "tempfile",
  "tokio",
  "tonic",
  "tower",
@@ -4508,6 +4538,23 @@ dependencies = [
  "reth-primitives-traits",
  "tokio",
  "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "glint-historical"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "arrow",
+ "datafusion",
+ "eyre",
+ "glint-primitives",
+ "parking_lot",
+ "rusqlite",
+ "serde_json",
+ "tempfile",
+ "tokio",
  "tracing",
 ]
 
@@ -4738,6 +4785,15 @@ dependencies = [
  "foldhash 0.2.0",
  "serde",
  "serde_core",
+]
+
+[[package]]
+name = "hashlink"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7382cf6263419f2d8df38c55d7da83da5c18aef87fc7a7fc1fb1e344edfe14c1"
+dependencies = [
+ "hashbrown 0.15.5",
 ]
 
 [[package]]
@@ -5863,6 +5919,17 @@ dependencies = [
  "libc",
  "plain",
  "redox_syscall 0.7.3",
+]
+
+[[package]]
+name = "libsqlite3-sys"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "947e6816f7825b2b45027c2c32e7085da9934defa535de4a6a46b10a4d5257fa"
+dependencies = [
+ "cc",
+ "pkg-config",
+ "vcpkg",
 ]
 
 [[package]]
@@ -11164,6 +11231,20 @@ name = "ruint-macro"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
+
+[[package]]
+name = "rusqlite"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a22715a5d6deef63c637207afbe68d0c72c3f8d0022d7cf9714c442d6157606b"
+dependencies = [
+ "bitflags 2.11.0",
+ "fallible-iterator",
+ "fallible-streaming-iterator",
+ "hashlink 0.10.0",
+ "libsqlite3-sys",
+ "smallvec",
+]
 
 [[package]]
 name = "rustc-demangle"
