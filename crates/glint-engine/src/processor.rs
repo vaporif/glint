@@ -1,6 +1,6 @@
 use alloy_primitives::{Address, B256, U256};
 use glint_primitives::{
-    entity::{derive_entity_key, EntityKey, EntityMetadata},
+    entity::{EntityKey, EntityMetadata, derive_entity_key},
     error::GlintError,
     storage::{
         compute_content_hash_from_raw, decode_operator_value, encode_operator_value,
