@@ -26,7 +26,7 @@ Beyond the base change, Glint also fixes a few things:
 | Base | op-geth fork | reth plugin (BlockExecutor + ExEx) | Optimism is dropping op-geth. |
 | On-chain cost | ~96 bytes/entity (3 slots) | 64 bytes/entity (2 slots) | Moved the expiration index off-chain. 33% cheaper per entity. |
 | Content integrity | None | 32-byte content hash | Without it, a sequencer can serve fake data and nobody can prove it |
-| Query engine | SQLite (in-process goroutine) | DataFusion (separate process, Arrow streaming) | See [why Arrow + DataFusion](#why-arrow--datafusion-not-sqlite) |
+| Query engine | SQLite with bitmap indexes, in-process, custom JSON-RPC | SQLite storage + DataFusion protocol layer, separate process, Flight SQL | Indexed queries like GolemBase, but with process isolation, standard SQL, and rich client ecosystem. See [query engine](#query-engine). |
 | Compression | Brotli per-tx | None | OP batcher already compresses. Per-tx Brotli has a decompression bomb in the txpool path (`io.ReadAll` with no size limit). |
 | MAX_BTL | Not enforced | Enforced at txpool + execution | Without it, entities live forever. The "ephemeral" thing falls apart. |
 | Extend | Permissionless, no cap | Permissionless, capped at MAX_BTL | GolemBase lets anyone extend any entity to infinity |
@@ -62,16 +62,16 @@ graph TB
     end
 
     subgraph analytics["glint-analytics (separate process)"]
-        mem["In-memory Arrow tables<br/>(all live entities)"]
-        df["DataFusion query engine"]
+        sqlite["SQLite<br/>(indexed storage)"]
+        df["DataFusion<br/>(query engine)"]
         flight["Flight SQL server"]
         rpc["JSON-RPC endpoint"]
-        mem --> df
+        sqlite --> df
         df --> flight
         df --> rpc
     end
 
-    arrow -->|Arrow IPC<br/>unix socket| mem
+    arrow -->|Arrow IPC<br/>unix socket| sqlite
 
     subgraph clients["Clients"]
         grafana["Grafana"]
@@ -96,25 +96,26 @@ graph TB
 
 `glint-exex` watches committed blocks, converts entity event logs into Arrow RecordBatches, and pushes them over a unix socket. Pure output - no state of its own.
 
+`glint-analytics` runs as a separate binary consuming that stream. It stores all live entities in SQLite with indexed annotation tables, serves SQL queries via DataFusion and Flight SQL, and exposes a JSON-RPC endpoint. If it crashes or falls behind, blocks keep getting produced - the node doesn't know or care.
+
+
+`glint-engine` is a custom `BlockExecutor` inside reth. Transactions sent to a magic address (`0x...676c696e74`, ASCII "glint") get intercepted as entity operations - create, update, delete, extend. Everything else goes through normal EVM execution. Each entity costs 64 bytes on-chain: 32 bytes of metadata (owner + expiration) and 32 bytes of content hash. Expired entities get cleaned up before each block's transactions run.
+
+`glint-exex` watches committed blocks, converts entity event logs into Arrow RecordBatches, and pushes them over a unix socket. Pure output - no state of its own.
+
 `glint-analytics` runs as a separate binary consuming that stream. In-memory table of all live entities, SQL via Flight SQL, JSON-RPC endpoint. If it crashes or falls behind, blocks keep getting produced - the node doesn't know or care.
 
-### Why columnar (not row-oriented)
+### Query engine
 
-All the analytics queries are scans and filters - entities by annotation, aggregation by expiration block - not point lookups by key. That's what the on-chain trie is for. Columnar wins here, and the whole pipeline is already Arrow from ExEx through the ring buffer into DataFusion. A row store would just mean serializing Arrow into rows on ingest and back to columnar on query for no reason.
+`glint-analytics` uses a two-layer query architecture: SQLite for storage and indexing, DataFusion for query protocol and analytics.
 
-### Why Arrow + DataFusion (not SQLite)
+**Why two layers?** Annotation queries need both indexed lookups ("find entities where `app = 'myapp'`") and analytical queries ("count entities grouped by owner"). SQLite's B-tree indexes make filtered lookups fast. DataFusion's columnar engine handles aggregations, window functions, and complex analytics. DataFusion also gives us Flight SQL — clients like Grafana, DBeaver, and Jupyter connect out of the box.
 
-Arrow is the in-memory format at every stage - from ExEx output through query execution. Nothing gets serialized or copied between formats.
+**How it works:** Entity data from the ExEx stream is written to SQLite via `rusqlite` into normalized tables (entities, string_annotations, numeric_annotations) with indexes on annotation key/value columns. A custom DataFusion `TableProvider` translates incoming SQL queries into SQLite queries, executes them, and returns Arrow batches for DataFusion to serve over Flight SQL.
 
-| | SQLite (GolemBase) | DataFusion + Arrow (Glint) |
-|---|---|---|
-| Isolation | In-process goroutine. If it dies, queries silently go stale with no health check or recovery. | Separate process. Can OOM or panic without touching block production. |
-| Data format | Row-oriented. Every ingest serializes into SQLite's B-tree pages. | Columnar RecordBatches end-to-end. Zero-copy from ExEx through query execution. |
-| Staleness detection | None. Clients can't tell if data is hours old. | Analytics process tracks exactly which block it's caught up to. |
-| FFI / build | C dependency via an obscure v0.0.7 bitmap store library. | Pure Rust. `cargo build` just works. |
-| Client ecosystem | Custom JSON-RPC only. | Flight SQL out of the box - Grafana, DBeaver, Tableau, Jupyter via standard JDBC/ODBC. Python in 3 lines via `pyarrow.flight`. |
-| Extensibility | Ad-hoc SQL schema, manual query plumbing. | Implement DataFusion's `TableProvider` trait, get full SQL with pushdown filters. |
-| License | Varies by binding | Apache 2.0, same as reth. |
+**Why not SQLite alone (like GolemBase)?** GolemBase runs SQLite in-process with a custom JSON-RPC API and a bitmap index library. No process isolation (if it dies, queries silently go stale), no staleness detection, limited client ecosystem. Separating analytics into its own process with DataFusion as the protocol layer gives us crash isolation, standard SQL, Flight SQL clients, and a clean boundary between storage and query serving.
+
+> **Note:** This architecture is planned. The current implementation uses in-memory Arrow tables with custom UDFs, which works for small datasets but doesn't scale — no indexes, full table scans, memory-bound.
 
 Other query engines considered for glint-analytics:
 
