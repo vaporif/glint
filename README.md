@@ -13,15 +13,15 @@ Blockchains store data permanently. If you want to publish a limit order that's 
 
 Think CoW Swap orders valid for minutes, oracle price feeds stale after a few blocks, compute marketplace offers that expire when filled, ephemeral task boards for AI agents. Anywhere people publish short-lived structured records and others need to query them by metadata.
 
-## Relationship to GolemBase
+## Relationship to Arkiv
 
-Glint wouldn't exist without [GolemBase](https://github.com/Arkiv-Network/arkiv-op-geth) (also called Arkiv). The GolemBase team designed the core model - magic address interception, BTL expiration, content-addressed keys, annotation model, atomic ops, owner-gated mutations.
+Glint wouldn't exist without [Arkiv](https://github.com/Arkiv-Network/arkiv-op-geth) (formerly GolemBase). The Arkiv team designed the core model - magic address interception, BTL expiration, content-addressed keys, annotation model, atomic ops, owner-gated mutations.
 
-Why rewrite instead of fork: GolemBase is an op-geth fork, and Optimism is phasing out op-geth in favor of reth. A geth fork is a dead end. Glint takes the same ideas and implements them as a reth plugin.
+Why rewrite instead of fork: Arkiv is an op-geth fork, and Optimism is phasing out op-geth in favor of reth. A geth fork is a dead end. Glint takes the same ideas and implements them as a reth plugin.
 
 Beyond the base change, Glint also fixes a few things:
 
-| | GolemBase | Glint | Why |
+| | Arkiv | Glint | Why |
 |---|---|---|---|
 | Base | op-geth fork | reth plugin (BlockExecutor + ExEx) | Optimism is dropping op-geth. |
 | On-chain cost | ~96 bytes/entity (3 slots) | 64 bytes/entity (2 slots) | Moved the expiration index off-chain. 33% cheaper per entity. |
@@ -29,7 +29,7 @@ Beyond the base change, Glint also fixes a few things:
 | Query engine | SQLite with bitmap indexes, in-process, custom JSON-RPC | DataFusion (columnar, in-memory) with secondary indexes, separate process, Flight SQL | Process isolation, columnar scans for analytics, indexed lookups for annotation filters. See [query engine](#query-engine). |
 | Compression | Brotli per-tx | None | OP batcher already compresses. Per-tx Brotli has a decompression bomb in the txpool path (`io.ReadAll` with no size limit). |
 | MAX_BTL | Not enforced | Enforced at txpool + execution | Without it, entities live forever. The "ephemeral" thing falls apart. |
-| Extend | Permissionless, no cap | Per-entity policy (anyone or owner/operator), capped at MAX_BTL | GolemBase lets anyone extend any entity to infinity. Glint lets the creator choose. |
+| Extend | Permissionless, no cap | Per-entity policy (anyone or owner/operator), capped at MAX_BTL | Arkiv lets anyone extend any entity to infinity. Glint lets the creator choose. |
 | Operator delegation | None | Optional operator per entity | Operator can update content and delete, but can't change permissions. So your backend can manage your entities without owning them. |
 | ChangeOwner | Supported | Removed | Delete + recreate is simpler, doesn't break external key references |
 
@@ -105,7 +105,7 @@ Everything lives in memory. Glint entities expire, so the live set is bounded by
 
 Entity data is stored as Arrow RecordBatches - columnar, cache-friendly. DataFusion runs analytical queries (aggregations, GROUP BY, window functions) with vectorized execution directly on this data. Nothing gets serialized between formats - Arrow from ExEx through to query results.
 
-Pure columnar has a problem though: annotation lookups ("find all USDC/WETH orders where price > 3500") hit every row. GolemBase solved this with SQLite bitmap indexes but gave up columnar analytics in the process.
+Pure columnar has a problem though: annotation lookups ("find all USDC/WETH orders where price > 3500") hit every row. Arkiv solved this with SQLite bitmap indexes but gave up columnar analytics in the process.
 
 Secondary indexes sit alongside the Arrow data - hash indexes on annotation key/value pairs and owner, a B-tree for numeric range queries, all backed by roaring bitmaps. A custom DataFusion `TableProvider` checks incoming filters against these indexes. If a filter matches an indexed field, it resolves via bitmap lookup in microseconds. If not, DataFusion does a full columnar scan, which is still fast for analytics. One engine, one copy of the data.
 
