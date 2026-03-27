@@ -1,6 +1,5 @@
 pub mod client;
 pub mod entity;
-#[cfg(feature = "flight_sql")]
 pub mod flight_sql;
 pub mod rpc;
 pub mod tx;

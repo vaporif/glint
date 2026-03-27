@@ -28,7 +28,6 @@ impl sealed::State for ReadWrite {}
 pub struct Glint<S: sealed::State = ReadOnly> {
     provider: DynProvider<Ethereum>,
     gas_limit: u64,
-    #[cfg(feature = "flight_sql")]
     flight: Option<crate::flight_sql::GlintFlightClient>,
     _state: PhantomData<S>,
 }
@@ -54,7 +53,6 @@ impl<S: sealed::State> Glint<S> {
         Self {
             provider: provider.erased(),
             gas_limit: DEFAULT_GAS_LIMIT,
-            #[cfg(feature = "flight_sql")]
             flight: None,
             _state: PhantomData,
         }
@@ -71,7 +69,6 @@ impl Glint {
             rpc_url: rpc_url.to_owned(),
             wallet: None,
             gas_limit: DEFAULT_GAS_LIMIT,
-            #[cfg(feature = "flight_sql")]
             flight_url: None,
             _state: PhantomData,
         }
@@ -110,10 +107,7 @@ impl<S: sealed::State> Glint<S> {
             .await?;
         Ok(timing)
     }
-}
 
-#[cfg(feature = "flight_sql")]
-impl<S: sealed::State> Glint<S> {
     pub async fn query(
         &mut self,
         sql: &str,
@@ -156,7 +150,6 @@ pub struct GlintBuilder<S: sealed::State = ReadOnly> {
     rpc_url: String,
     wallet: Option<EthereumWallet>,
     gas_limit: u64,
-    #[cfg(feature = "flight_sql")]
     flight_url: Option<String>,
     _state: PhantomData<S>,
 }
@@ -168,7 +161,6 @@ impl<S: sealed::State> GlintBuilder<S> {
         self
     }
 
-    #[cfg(feature = "flight_sql")]
     #[must_use]
     pub fn flight_url(mut self, url: &str) -> Self {
         self.flight_url = Some(url.to_owned());
@@ -183,19 +175,16 @@ impl GlintBuilder<ReadOnly> {
             rpc_url: self.rpc_url,
             wallet: Some(wallet),
             gas_limit: self.gas_limit,
-            #[cfg(feature = "flight_sql")]
             flight_url: self.flight_url,
             _state: PhantomData,
         }
     }
 
-    #[allow(clippy::unused_async)]
     pub async fn build(self) -> eyre::Result<Glint<ReadOnly>> {
         let url = self.rpc_url.parse()?;
         let provider = ProviderBuilder::new().connect_http(url);
         let mut client = Glint::<ReadOnly>::from_provider(provider);
         client.gas_limit = self.gas_limit;
-        #[cfg(feature = "flight_sql")]
         if let Some(ref flight_url) = self.flight_url {
             client.flight =
                 Some(crate::flight_sql::GlintFlightClient::connect(flight_url.as_str()).await?);
@@ -205,14 +194,12 @@ impl GlintBuilder<ReadOnly> {
 }
 
 impl GlintBuilder<ReadWrite> {
-    #[allow(clippy::unused_async)]
     pub async fn build(self) -> eyre::Result<Glint<ReadWrite>> {
         let wallet = self.wallet.expect("wallet set by typestate");
         let url = self.rpc_url.parse()?;
         let provider = ProviderBuilder::new().wallet(wallet).connect_http(url);
         let mut client = Glint::<ReadWrite>::from_provider(provider);
         client.gas_limit = self.gas_limit;
-        #[cfg(feature = "flight_sql")]
         if let Some(ref flight_url) = self.flight_url {
             client.flight =
                 Some(crate::flight_sql::GlintFlightClient::connect(flight_url.as_str()).await?);

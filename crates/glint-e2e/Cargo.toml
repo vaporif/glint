@@ -16,7 +16,7 @@ tempfile.workspace = true
 reqwest.workspace = true
 
 [dev-dependencies]
-glint-sdk = { workspace = true, features = ["flight_sql"] }
+glint-sdk.workspace = true
 glint-primitives.workspace = true
 
 alloy-primitives = { workspace = true, features = ["rlp", "serde"] }
