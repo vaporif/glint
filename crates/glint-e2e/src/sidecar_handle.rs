@@ -83,7 +83,8 @@ impl SidecarHandle {
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         }
 
-        eyre::bail!("sidecar did not become healthy within 30s")
+        let logs = self.logs();
+        eyre::bail!("sidecar did not become healthy within 30s\n\n=== SIDECAR LOGS ===\n{logs}")
     }
 }
 
