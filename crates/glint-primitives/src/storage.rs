@@ -128,6 +128,7 @@ mod tests {
             string_annotations_rlp.as_slice(),
             numeric_annotations_rlp.as_slice(),
         ] {
+            #[allow(clippy::cast_possible_truncation)]
             expected_preimage.extend_from_slice(&(field.len() as u32).to_be_bytes());
             expected_preimage.extend_from_slice(field);
         }

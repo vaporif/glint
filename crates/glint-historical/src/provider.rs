@@ -98,6 +98,12 @@ pub fn extract_block_range(filters: &[Expr]) -> Option<(u64, u64)> {
                     }
                 } else if is_block_number_col(left) {
                     match op {
+                        Operator::Eq => {
+                            if let Some(v) = extract_u64_literal(right) {
+                                lower = Some(lower.map_or(v, |cur| cur.max(v)));
+                                upper = Some(upper.map_or(v, |cur| cur.min(v)));
+                            }
+                        }
                         Operator::GtEq => {
                             if let Some(v) = extract_u64_literal(right) {
                                 lower = Some(lower.map_or(v, |cur| cur.max(v)));
@@ -479,6 +485,14 @@ mod tests {
             .and(col("block_number").lt_eq(lit(500u64)));
         let range = extract_block_range(&[expr]);
         assert_eq!(range, Some((100, 500)));
+    }
+
+    #[test]
+    fn extract_block_range_equality() {
+        use datafusion::prelude::*;
+        let expr = col("block_number").eq(lit(42u64));
+        let range = extract_block_range(&[expr]);
+        assert_eq!(range, Some((42, 42)));
     }
 
     #[test]

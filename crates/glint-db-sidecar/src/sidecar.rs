@@ -237,9 +237,7 @@ async fn run_connection(
 
         if is_live {
             while let Ok(queued) = batch_rx.try_recv() {
-                if process_batch(store, sqlite_conn, &queued, &mut last_block)?
-                    .is_needs_replay()
-                {
+                if process_batch(store, sqlite_conn, &queued, &mut last_block)?.is_needs_replay() {
                     return Ok(ConnectionOutcome::NeedsReplay);
                 }
             }

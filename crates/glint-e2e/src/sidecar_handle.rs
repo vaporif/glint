@@ -3,25 +3,33 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
-pub struct AnalyticsHandle {
+use tempfile::TempDir;
+
+pub struct SidecarHandle {
     child: Child,
     flight_port: u16,
     health_port: u16,
+    _db_dir: TempDir,
 }
 
-impl AnalyticsHandle {
+impl SidecarHandle {
     pub fn spawn(exex_socket: &Path) -> eyre::Result<Self> {
         let bin = Self::resolve_binary()?;
         let flight_port = pick_port()?;
         let health_port = pick_port()?;
+        let db_dir = tempfile::tempdir()?;
+        let db_path = db_dir.path().join("glint-sidecar.db");
 
         let child = Command::new(&bin)
+            .arg("run")
             .arg("--exex-socket")
             .arg(exex_socket)
             .arg("--flight-port")
             .arg(flight_port.to_string())
             .arg("--health-port")
             .arg(health_port.to_string())
+            .arg("--db-path")
+            .arg(&db_path)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()?;
@@ -30,6 +38,7 @@ impl AnalyticsHandle {
             child,
             flight_port,
             health_port,
+            _db_dir: db_dir,
         };
 
         handle.wait_healthy()?;
@@ -45,14 +54,14 @@ impl AnalyticsHandle {
     }
 
     fn resolve_binary() -> eyre::Result<PathBuf> {
-        if let Ok(bin) = std::env::var("GLINT_ANALYTICS_BIN") {
+        if let Ok(bin) = std::env::var("GLINT_SIDECAR_BIN") {
             return Ok(PathBuf::from(bin));
         }
         let fallback =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/debug/glint-analytics");
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/debug/glint-db-sidecar");
         eyre::ensure!(
             fallback.exists(),
-            "glint-analytics not found at {fallback:?} — run `cargo build --bin glint-analytics` or set GLINT_ANALYTICS_BIN",
+            "glint-db-sidecar not found at {fallback:?} — run `cargo build --bin glint-db-sidecar` or set GLINT_SIDECAR_BIN",
         );
         Ok(fallback)
     }
@@ -64,7 +73,7 @@ impl AnalyticsHandle {
 
         while std::time::Instant::now() < deadline {
             if let Some(status) = self.child.try_wait()? {
-                eyre::bail!("analytics exited with {status} before becoming healthy");
+                eyre::bail!("sidecar exited with {status} before becoming healthy");
             }
 
             if client
@@ -80,11 +89,11 @@ impl AnalyticsHandle {
         }
 
         self.child.kill().ok();
-        eyre::bail!("analytics did not become healthy within 30s")
+        eyre::bail!("sidecar did not become healthy within 30s")
     }
 }
 
-impl Drop for AnalyticsHandle {
+impl Drop for SidecarHandle {
     fn drop(&mut self) {
         self.child.kill().ok();
         self.child.wait().ok();

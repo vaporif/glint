@@ -27,6 +27,7 @@ roaring.workspace = true
 tokio = { workspace = true, features = ["full", "test-util"] }
 arrow = { workspace = true, features = ["prettyprint"] }
 alloy-primitives.workspace = true
+glint-primitives = { workspace = true, features = ["test-utils"] }
 
 [lints]
 workspace = true

@@ -1116,7 +1116,10 @@ mod tests {
             .await
             .unwrap();
         let results = df.collect().await.unwrap();
-        let total_rows: usize = results.iter().map(|b| b.num_rows()).sum();
+        let total_rows: usize = results
+            .iter()
+            .map(arrow::array::RecordBatch::num_rows)
+            .sum();
         assert_eq!(total_rows, 2);
     }
 
@@ -1131,7 +1134,10 @@ mod tests {
             .await
             .unwrap();
         let results = df.collect().await.unwrap();
-        let total_rows: usize = results.iter().map(|b| b.num_rows()).sum();
+        let total_rows: usize = results
+            .iter()
+            .map(arrow::array::RecordBatch::num_rows)
+            .sum();
         assert_eq!(total_rows, 2);
     }
 
@@ -1146,7 +1152,10 @@ mod tests {
             .await
             .unwrap();
         let results = df.collect().await.unwrap();
-        let total_rows: usize = results.iter().map(|b| b.num_rows()).sum();
+        let total_rows: usize = results
+            .iter()
+            .map(arrow::array::RecordBatch::num_rows)
+            .sum();
         assert_eq!(total_rows, 1);
     }
 
@@ -1198,7 +1207,10 @@ mod tests {
             .await
             .unwrap();
         let results = df.collect().await.unwrap();
-        let total_rows: usize = results.iter().map(|b| b.num_rows()).sum();
+        let total_rows: usize = results
+            .iter()
+            .map(arrow::array::RecordBatch::num_rows)
+            .sum();
         assert_eq!(total_rows, 1);
 
         let df = ctx
@@ -1206,7 +1218,10 @@ mod tests {
             .await
             .unwrap();
         let results = df.collect().await.unwrap();
-        let total_rows: usize = results.iter().map(|b| b.num_rows()).sum();
+        let total_rows: usize = results
+            .iter()
+            .map(arrow::array::RecordBatch::num_rows)
+            .sum();
         assert_eq!(total_rows, 2);
     }
 

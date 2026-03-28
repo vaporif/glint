@@ -627,7 +627,7 @@ mod tests {
 
         assert_eq!(snap.batch.num_rows(), 2);
 
-        for slot in snap.indexes.all_live_slots.iter() {
+        for slot in &snap.indexes.all_live_slots {
             let row_idx = snap.indexes.slot_to_row[&slot];
             assert!(row_idx < snap.batch.num_rows());
         }
@@ -652,7 +652,7 @@ mod tests {
         assert!(snap.indexes.slot_to_row.contains_key(&2));
 
         let mut row_indices: Vec<usize> = snap.indexes.slot_to_row.values().copied().collect();
-        row_indices.sort();
+        row_indices.sort_unstable();
         assert_eq!(row_indices, vec![0, 1]);
     }
 }

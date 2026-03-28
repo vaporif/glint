@@ -4,10 +4,14 @@ pub mod constants;
 pub mod entity;
 pub mod error;
 pub mod events;
+#[cfg(feature = "arrow")]
+pub mod exex_schema;
 pub mod exex_types;
 pub mod parse;
 #[cfg(feature = "rpc")]
 pub mod rpc;
 pub mod storage;
+#[cfg(feature = "test-utils")]
+pub mod test_utils;
 pub mod transaction;
 pub mod validation;

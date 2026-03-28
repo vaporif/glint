@@ -4623,6 +4623,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "alloy-sol-types",
+ "arrow",
  "eyre",
  "jsonrpsee",
  "regex",
