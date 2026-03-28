@@ -58,6 +58,7 @@ fn build_historical_schema() -> Schema {
 }
 
 fn build_schema() -> Schema {
+    #[allow(clippy::wildcard_imports)]
     use columns::*;
     Schema::new(vec![
         Field::new(BLOCK_NUMBER, DataType::UInt64, false),

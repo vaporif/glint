@@ -187,7 +187,9 @@ async fn e2e_annotations_survive_roundtrip() {
     let batches = df.collect().await.unwrap();
     assert_eq!(batches.iter().map(|b| b.num_rows()).sum::<usize>(), 1);
 
-    let str_map = batches[0].column_by_name(columns::STRING_ANNOTATIONS).unwrap();
+    let str_map = batches[0]
+        .column_by_name(columns::STRING_ANNOTATIONS)
+        .unwrap();
     let str_map = str_map.as_map();
     let keys = str_map.keys().as_string::<i32>();
     let values = str_map.values().as_string::<i32>();
@@ -206,7 +208,9 @@ async fn e2e_annotations_survive_roundtrip() {
         ]
     );
 
-    let num_map = batches[0].column_by_name(columns::NUMERIC_ANNOTATIONS).unwrap();
+    let num_map = batches[0]
+        .column_by_name(columns::NUMERIC_ANNOTATIONS)
+        .unwrap();
     let num_map = num_map.as_map();
     let keys = num_map.keys().as_string::<i32>();
     let values = num_map
@@ -489,7 +493,12 @@ async fn e2e_null_optional_fields() {
             .unwrap()
             .is_null(0)
     );
-    assert!(batches[0].column_by_name(columns::PAYLOAD).unwrap().is_null(0));
+    assert!(
+        batches[0]
+            .column_by_name(columns::PAYLOAD)
+            .unwrap()
+            .is_null(0)
+    );
 }
 
 #[tokio::test]

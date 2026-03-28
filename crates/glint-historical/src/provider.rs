@@ -5,8 +5,7 @@ use async_trait::async_trait;
 use arrow::{
     array::{
         ArrayRef, BinaryBuilder, FixedSizeBinaryBuilder, RecordBatch, StringBuilder, UInt8Builder,
-        UInt64Builder,
-        builder::MapBuilder,
+        UInt64Builder, builder::MapBuilder,
     },
     datatypes::SchemaRef,
 };
