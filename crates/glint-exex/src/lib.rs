@@ -375,13 +375,11 @@ fn report_finished_height<Node: reth_node_api::FullNodeComponents>(
     max_reported: &mut BlockNumHash,
 ) {
     let consumer_last_delivered = *delivered_rx.borrow();
-    let ring_buffer_oldest = ring_buffer.oldest();
 
-    let computed = consumer_last_delivered.unwrap_or_else(|| {
-        // No consumer yet — hold at oldest ring buffer entry to prevent WAL pruning
-        // of unseen blocks. If ring buffer is empty, report current tip.
-        ring_buffer_oldest.unwrap_or(current_tip)
-    });
+    // If the consumer told us how far it got, hold there so the WAL keeps
+    // everything it hasn't seen. Otherwise just report the tip — the ring
+    // buffer keeps its own history for replay.
+    let computed = consumer_last_delivered.unwrap_or(current_tip);
 
     // Safety cap: never fall behind tip - MAX_BTL to prevent unbounded WAL growth
     let absolute_floor = current_tip.number.saturating_sub(MAX_BTL);
