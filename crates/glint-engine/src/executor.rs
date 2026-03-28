@@ -899,8 +899,7 @@ mod tests {
     #[test]
     fn glint_tx_increments_sender_nonce_and_deducts_gas() {
         use alloy_consensus::{
-            EthereumTxEnvelope, EthereumTypedTransaction, TxEip1559,
-            transaction::Recovered,
+            EthereumTxEnvelope, EthereumTypedTransaction, TxEip1559, transaction::Recovered,
         };
         use glint_primitives::transaction::{Create, GlintTransaction as GlintTx};
         use revm::Database as _;
