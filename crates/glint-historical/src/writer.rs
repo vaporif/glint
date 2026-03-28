@@ -111,11 +111,11 @@ fn validate_blob_len(blob: &[u8], expected: usize, name: &str) -> eyre::Result<(
     Ok(())
 }
 
-fn nullable_str<'a>(col: &'a StringArray, i: usize) -> Option<&'a str> {
+fn nullable_str(col: &StringArray, i: usize) -> Option<&str> {
     (!col.is_null(i)).then(|| col.value(i))
 }
 
-fn nullable_bytes<'a>(col: &'a BinaryArray, i: usize) -> Option<&'a [u8]> {
+fn nullable_bytes(col: &BinaryArray, i: usize) -> Option<&[u8]> {
     (!col.is_null(i)).then(|| col.value(i))
 }
 
