@@ -329,8 +329,11 @@ where
                 },
                 state,
             };
-            self.inner
-                .commit_transaction(RB::build_crud_result(result, Default::default(), alloy_primitives::Address::ZERO))?;
+            self.inner.commit_transaction(RB::build_crud_result(
+                result,
+                Default::default(),
+                alloy_primitives::Address::ZERO,
+            ))?;
         }
         self.inner.finish()
     }

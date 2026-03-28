@@ -1,4 +1,4 @@
-use alloy_primitives::{keccak256, Address, B256, U256};
+use alloy_primitives::{Address, B256, U256, keccak256};
 
 const STORAGE_PREFIX: &[u8] = b"glintEntityMetaData";
 const CONTENT_HASH_PREFIX: &[u8] = b"glintEntityContentHash";
