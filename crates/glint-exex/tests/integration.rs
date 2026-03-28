@@ -150,6 +150,19 @@ impl TestHarness {
             self.socket_path.display()
         );
     }
+
+    async fn connect(&self) -> UnixStream {
+        for _ in 0..50 {
+            if let Ok(stream) = UnixStream::connect(&self.socket_path).await {
+                return stream;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!(
+            "could not connect to socket at {}",
+            self.socket_path.display()
+        );
+    }
 }
 
 impl Drop for TestHarness {
@@ -164,7 +177,7 @@ async fn full_subscribe_and_replay() {
     let mut harness = TestHarness::spawn();
     harness.wait_for_socket().await;
 
-    let client = UnixStream::connect(&harness.socket_path).await.unwrap();
+    let client = harness.connect().await;
     let std_client = client.into_std().unwrap();
     std_client.set_nonblocking(false).unwrap();
 
@@ -243,7 +256,7 @@ async fn probe_returns_status() {
     let harness = TestHarness::spawn();
     harness.wait_for_socket().await;
 
-    let mut client = UnixStream::connect(&harness.socket_path).await.unwrap();
+    let mut client = harness.connect().await;
 
     client.write_all(&[0x00]).await.unwrap();
 
@@ -267,7 +280,7 @@ async fn unknown_message_returns_error_byte() {
     let harness = TestHarness::spawn();
     harness.wait_for_socket().await;
 
-    let mut client = UnixStream::connect(&harness.socket_path).await.unwrap();
+    let mut client = harness.connect().await;
 
     let mut buf = Vec::with_capacity(9);
     buf.push(0xFE);
@@ -294,7 +307,7 @@ async fn cancellation_disconnects_consumer() {
     let mut harness = TestHarness::spawn();
     harness.wait_for_socket().await;
 
-    let client_a = UnixStream::connect(&harness.socket_path).await.unwrap();
+    let client_a = harness.connect().await;
     let std_a = client_a.into_std().unwrap();
     std_a.set_nonblocking(false).unwrap();
 

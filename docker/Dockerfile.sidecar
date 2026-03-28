@@ -6,4 +6,5 @@ RUN cargo build --release --bin glint-db-sidecar
 
 FROM gcr.io/distroless/cc-debian12
 COPY --from=builder /src/target/release/glint-db-sidecar /usr/local/bin/glint-db-sidecar
+EXPOSE 50051 8080
 ENTRYPOINT ["/usr/local/bin/glint-db-sidecar"]
