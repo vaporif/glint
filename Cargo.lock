@@ -4434,6 +4434,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "arrow",
+ "async-trait",
  "bytes",
  "datafusion",
  "eyre",
@@ -4547,6 +4548,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "arrow",
+ "async-trait",
  "datafusion",
  "eyre",
  "glint-primitives",

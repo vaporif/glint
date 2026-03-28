@@ -1,5 +1,7 @@
 use std::{any::Any, fmt, sync::Arc};
 
+use async_trait::async_trait;
+
 use arrow::{
     array::{
         ArrayRef, BinaryBuilder, FixedSizeBinaryBuilder, RecordBatch, StringBuilder, UInt8Builder,
@@ -203,6 +205,7 @@ fn references_block_number(expr: &Expr) -> bool {
     }
 }
 
+#[async_trait]
 impl TableProvider for HistoricalTableProvider {
     fn as_any(&self) -> &dyn Any {
         self
@@ -232,52 +235,37 @@ impl TableProvider for HistoricalTableProvider {
             .collect())
     }
 
-    fn scan<'life0, 'life1, 'life2, 'life3, 'async_trait>(
-        &'life0 self,
-        _state: &'life1 dyn Session,
-        projection: Option<&'life2 Vec<usize>>,
-        filters: &'life3 [Expr],
+    async fn scan(
+        &self,
+        _state: &dyn Session,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
         _limit: Option<usize>,
-    ) -> std::pin::Pin<
-        Box<
-            dyn std::future::Future<Output = DfResult<Arc<dyn ExecutionPlan>>>
-                + Send
-                + 'async_trait,
-        >,
-    >
-    where
-        'life0: 'async_trait,
-        'life1: 'async_trait,
-        'life2: 'async_trait,
-        'life3: 'async_trait,
-        Self: 'async_trait,
-    {
+    ) -> DfResult<Arc<dyn ExecutionPlan>> {
         let conn = Arc::clone(&self.conn);
         let schema = Arc::clone(&self.schema);
         let out_schema = Arc::clone(&self.schema);
         let filters = filters.to_vec();
         let projection = projection.cloned();
 
-        Box::pin(async move {
-            let range = extract_block_range(&filters).ok_or_else(|| {
-                datafusion::error::DataFusionError::Plan(
-                    "historical queries require both lower and upper block_number bounds \
-                     (e.g., WHERE block_number BETWEEN 100 AND 500)"
-                        .to_owned(),
-                )
-            })?;
+        let range = extract_block_range(&filters).ok_or_else(|| {
+            datafusion::error::DataFusionError::Plan(
+                "historical queries require both lower and upper block_number bounds \
+                 (e.g., WHERE block_number BETWEEN 100 AND 500)"
+                    .to_owned(),
+            )
+        })?;
 
-            let batch = tokio::task::spawn_blocking(move || {
-                let conn = conn.lock();
-                query_block_range(&conn, range.0, range.1, &schema)
-            })
-            .await
-            .map_err(|e| datafusion::error::DataFusionError::External(Box::new(e)))??;
-
-            let source = MemorySourceConfig::try_new(&[vec![batch]], out_schema, projection)?;
-            let exec = DataSourceExec::new(Arc::new(source));
-            Ok(Arc::new(exec) as Arc<dyn ExecutionPlan>)
+        let batch = tokio::task::spawn_blocking(move || {
+            let conn = conn.lock();
+            query_block_range(&conn, range.0, range.1, &schema)
         })
+        .await
+        .map_err(|e| datafusion::error::DataFusionError::External(Box::new(e)))??;
+
+        let source = MemorySourceConfig::try_new(&[vec![batch]], out_schema, projection)?;
+        let exec = DataSourceExec::new(Arc::new(source));
+        Ok(Arc::new(exec) as Arc<dyn ExecutionPlan>)
     }
 }
 
@@ -406,9 +394,9 @@ fn build_result_batch(rows: &[EventSqlRow], schema: &SchemaRef) -> DfResult<Reco
                     .map_err(|e| datafusion::error::DataFusionError::External(Box::new(e)))?;
                 for pair in &pairs {
                     if pair.len() != 2 {
-                        return Err(datafusion::error::DataFusionError::Internal(
-                            format!("malformed string annotation pair in DB: expected [key, value], got {pair:?}"),
-                        ));
+                        return Err(datafusion::error::DataFusionError::Internal(format!(
+                            "malformed string annotation pair in DB: expected [key, value], got {pair:?}"
+                        )));
                     }
                     str_ann_b.keys().append_value(&pair[0]);
                     str_ann_b.values().append_value(&pair[1]);
@@ -429,9 +417,9 @@ fn build_result_batch(rows: &[EventSqlRow], schema: &SchemaRef) -> DfResult<Reco
                         pair.get(0).and_then(|v| v.as_str()),
                         pair.get(1).and_then(serde_json::Value::as_u64),
                     ) else {
-                        return Err(datafusion::error::DataFusionError::Internal(
-                            format!("malformed numeric annotation pair in DB: expected [key, value], got {pair}"),
-                        ));
+                        return Err(datafusion::error::DataFusionError::Internal(format!(
+                            "malformed numeric annotation pair in DB: expected [key, value], got {pair}"
+                        )));
                     };
                     num_ann_b.keys().append_value(k);
                     num_ann_b.values().append_value(v);

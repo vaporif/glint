@@ -16,6 +16,7 @@ glint-primitives.workspace = true
 alloy-primitives.workspace = true
 
 arrow.workspace = true
+async-trait.workspace = true
 tokio.workspace = true
 datafusion.workspace = true
 tracing.workspace = true

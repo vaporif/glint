@@ -1,4 +1,6 @@
-use std::{any::Any, future::Future, ops::Bound, pin::Pin, sync::Arc};
+use std::{any::Any, ops::Bound, sync::Arc};
+
+use async_trait::async_trait;
 
 use alloy_primitives::Address;
 use arrow::{
@@ -316,6 +318,7 @@ impl IndexedTableProvider {
     }
 }
 
+#[async_trait]
 impl TableProvider for IndexedTableProvider {
     fn as_any(&self) -> &dyn Any {
         self
@@ -343,82 +346,71 @@ impl TableProvider for IndexedTableProvider {
             .collect())
     }
 
-    fn scan<'life0, 'life1, 'life2, 'life3, 'async_trait>(
-        &'life0 self,
-        state: &'life1 dyn Session,
-        projection: Option<&'life2 Vec<usize>>,
-        filters: &'life3 [Expr],
+    async fn scan(
+        &self,
+        state: &dyn Session,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
         limit: Option<usize>,
-    ) -> Pin<Box<dyn Future<Output = DfResult<Arc<dyn ExecutionPlan>>> + Send + 'async_trait>>
-    where
-        'life0: 'async_trait,
-        'life1: 'async_trait,
-        'life2: 'async_trait,
-        'life3: 'async_trait,
-        Self: 'async_trait,
-    {
+    ) -> DfResult<Arc<dyn ExecutionPlan>> {
         let snapshot: Arc<Snapshot> = Arc::clone(&*self.snapshot_rx.borrow());
         let schema = entity_schema();
-        let filters = filters.to_vec();
+        let indexes = &snapshot.indexes;
 
-        Box::pin(async move {
-            let indexes = &snapshot.indexes;
-
-            let mut result_bitmap: Option<RoaringBitmap> = None;
-            for filter in &filters {
-                if let FilterMatch::Resolved(bm) = match_filter(filter, indexes) {
-                    result_bitmap = Some(match result_bitmap {
-                        Some(existing) => existing & &bm,
-                        None => bm,
-                    });
-                }
+        let mut result_bitmap: Option<RoaringBitmap> = None;
+        for filter in filters {
+            if let FilterMatch::Resolved(bm) = match_filter(filter, indexes) {
+                result_bitmap = Some(match result_bitmap {
+                    Some(existing) => existing & &bm,
+                    None => bm,
+                });
             }
+        }
 
-            let batch = if let Some(bm) = result_bitmap {
-                let row_indices: Vec<usize> = bm
-                    .iter()
-                    .filter_map(|slot| indexes.slot_to_row.get(&slot).copied())
-                    .collect();
+        let batch = if let Some(bm) = result_bitmap {
+            let row_indices: Vec<usize> = bm
+                .iter()
+                .filter_map(|slot| indexes.slot_to_row.get(&slot).copied())
+                .collect();
 
-                if row_indices.len() == snapshot.batch.num_rows() {
-                    (*snapshot.batch).clone()
-                } else {
-                    let indices = arrow::array::UInt32Array::from(
-                        row_indices
-                            .iter()
-                            .map(|&i| {
-                                u32::try_from(i).map_err(|_| {
-                                    datafusion::common::DataFusionError::Execution(format!(
-                                        "row index {i} exceeds u32::MAX"
-                                    ))
-                                })
-                            })
-                            .collect::<DfResult<Vec<u32>>>()?,
-                    );
-                    let columns: Vec<ArrayRef> = snapshot
-                        .batch
-                        .columns()
-                        .iter()
-                        .map(|col| arrow::compute::take(col, &indices, None))
-                        .collect::<Result<Vec<_>, _>>()
-                        .map_err(|e| {
-                            datafusion::common::DataFusionError::Execution(format!(
-                                "index take failed: {e}"
-                            ))
-                        })?;
-                    RecordBatch::try_new(schema.clone(), columns).map_err(|e| {
-                        datafusion::common::DataFusionError::Execution(format!(
-                            "filtered batch construction failed: {e}"
-                        ))
-                    })?
-                }
-            } else {
+            if row_indices.len() == snapshot.batch.num_rows() {
                 (*snapshot.batch).clone()
-            };
+            } else {
+                let indices = arrow::array::UInt32Array::from(
+                    row_indices
+                        .iter()
+                        .map(|&i| {
+                            u32::try_from(i).map_err(|_| {
+                                datafusion::common::DataFusionError::Execution(format!(
+                                    "row index {i} exceeds u32::MAX"
+                                ))
+                            })
+                        })
+                        .collect::<DfResult<Vec<u32>>>()?,
+                );
+                let columns: Vec<ArrayRef> = snapshot
+                    .batch
+                    .columns()
+                    .iter()
+                    .map(|col| arrow::compute::take(col, &indices, None))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| {
+                        datafusion::common::DataFusionError::Execution(format!(
+                            "index take failed: {e}"
+                        ))
+                    })?;
+                RecordBatch::try_new(schema.clone(), columns).map_err(|e| {
+                    datafusion::common::DataFusionError::Execution(format!(
+                        "filtered batch construction failed: {e}"
+                    ))
+                })?
+            }
+        } else {
+            (*snapshot.batch).clone()
+        };
 
-            let mem_table = MemTable::try_new(schema, vec![vec![batch]])?;
-            mem_table.scan(state, projection, &[], limit).await
-        })
+        let mem_table = MemTable::try_new(schema, vec![vec![batch]])?;
+        mem_table.scan(state, projection, &[], limit).await
     }
 }
 
