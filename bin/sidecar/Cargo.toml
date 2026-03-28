@@ -1,10 +1,10 @@
 [package]
-name = "glint-db-sidecar"
+name = "glint-sidecar"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Unified DB sidecar for Glint: live + historical entity queries"
+description = "DB sidecar for Glint: live + historical entity queries"
 repository.workspace = true
 readme.workspace = true
 keywords.workspace = true

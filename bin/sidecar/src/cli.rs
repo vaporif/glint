@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
-    name = "glint-db-sidecar",
+    name = "glint-sidecar",
     about = "Unified DB sidecar for Glint: live + historical entity queries"
 )]
 pub struct Cli {

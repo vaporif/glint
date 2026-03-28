@@ -85,6 +85,9 @@ jobs:
       - name: Nix build op-glint
         run: nix build .#op-glint
 
+      - name: Nix build glint-sidecar
+        run: nix build .#glint-sidecar
+
   gitleaks:
     name: Gitleaks
     runs-on: ubuntu-latest

@@ -33,7 +33,7 @@ jobs:
           - image: op-glint
             dockerfile: docker/Dockerfile.node
             build-args: BINARY=op-glint
-          - image: glint-db-sidecar
+          - image: glint-sidecar
             dockerfile: docker/Dockerfile.sidecar
             build-args: ""
     steps:
@@ -82,7 +82,7 @@ jobs:
         run: |
           docker load -i /tmp/eth-glint.tar
           docker load -i /tmp/op-glint.tar
-          docker load -i /tmp/glint-db-sidecar.tar
+          docker load -i /tmp/glint-sidecar.tar
 
       - name: E2E tests
         run: nix develop --command cargo nextest run -p glint-e2e --run-ignored all

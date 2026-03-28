@@ -14,7 +14,7 @@ impl SidecarHandle {
     pub async fn spawn(exex_volume_path: &Path) -> eyre::Result<Self> {
         let image_tag = std::env::var("GLINT_IMAGE_TAG").unwrap_or_else(|_| "latest".into());
 
-        let image = GenericImage::new("glint-db-sidecar", &image_tag)
+        let image = GenericImage::new("glint-sidecar", &image_tag)
             .with_exposed_port(50051.tcp())
             .with_exposed_port(8080.tcp())
             .with_env_var("RUST_LOG", "debug")

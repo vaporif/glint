@@ -11,11 +11,11 @@ FROM chef AS builder
 COPY --from=planner /src/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
-RUN cargo build --release --bin glint-db-sidecar
+RUN cargo build --release --bin glint-sidecar
 RUN mkdir -p /empty-data
 
 FROM gcr.io/distroless/cc-debian12
-COPY --from=builder /src/target/release/glint-db-sidecar /usr/local/bin/glint-db-sidecar
+COPY --from=builder /src/target/release/glint-sidecar /usr/local/bin/glint-sidecar
 COPY --from=builder /empty-data /data
 EXPOSE 50051 8080
-ENTRYPOINT ["/usr/local/bin/glint-db-sidecar"]
+ENTRYPOINT ["/usr/local/bin/glint-sidecar"]
