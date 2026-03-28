@@ -12,8 +12,6 @@ use rusqlite::Connection;
 use tokio::sync::watch;
 use tracing::{error, info, warn};
 
-use crate::routing::GlintEntityProvider;
-
 use parking_lot::Mutex;
 
 enum ConnectionOutcome {
@@ -59,13 +57,10 @@ pub async fn run(
     let live_provider = Arc::new(table_provider::IndexedTableProvider::new(
         snapshot_rx.clone(),
     ));
-    let routing_provider = Arc::new(GlintEntityProvider::new(
-        live_provider as Arc<dyn datafusion::datasource::TableProvider>,
-        historical_provider as Arc<dyn datafusion::datasource::TableProvider>,
-    ));
 
     let ctx = Arc::new(datafusion::prelude::SessionContext::new());
-    ctx.register_table("entities", routing_provider)?;
+    ctx.register_table("entities", live_provider)?;
+    ctx.register_table("entity_events", historical_provider)?;
     ctx.register_udf(datafusion::logical_expr::ScalarUDF::from(StrAnnUdf::new()));
     ctx.register_udf(datafusion::logical_expr::ScalarUDF::from(NumAnnUdf::new()));
 

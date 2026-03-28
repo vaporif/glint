@@ -3,7 +3,7 @@ mod flight_sql;
 mod health;
 mod ipc_client;
 mod rebuild;
-mod routing;
+
 mod sidecar;
 
 use clap::Parser;

@@ -192,10 +192,6 @@ const fn extract_u64_literal(expr: &Expr) -> Option<u64> {
     }
 }
 
-pub fn has_block_range_filter(filters: &[Expr]) -> bool {
-    filters.iter().any(references_block_number)
-}
-
 fn references_block_number(expr: &Expr) -> bool {
     match expr {
         Expr::Column(c) => c.name() == "block_number",
@@ -501,6 +497,10 @@ mod tests {
         let expr = col("block_number").gt_eq(lit(100u64));
         let range = extract_block_range(&[expr]);
         assert_eq!(range, None);
+    }
+
+    fn has_block_range_filter(filters: &[Expr]) -> bool {
+        filters.iter().any(super::references_block_number)
     }
 
     #[test]

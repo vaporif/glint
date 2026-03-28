@@ -146,7 +146,7 @@ async fn test_historical_query() -> eyre::Result<()> {
 
     // Query historical: full range should return both entities
     let sql = format!(
-        "SELECT block_number, event_type FROM entities WHERE block_number BETWEEN {block1} AND {block2}"
+        "SELECT block_number, event_type FROM entity_events WHERE block_number BETWEEN {block1} AND {block2}"
     );
     let batches = client.query(&sql).await?;
     let total: usize = batches
@@ -160,7 +160,7 @@ async fn test_historical_query() -> eyre::Result<()> {
 
     // Query historical: only first block
     let sql = format!(
-        "SELECT block_number FROM entities WHERE block_number BETWEEN {block1} AND {block1}"
+        "SELECT block_number FROM entity_events WHERE block_number BETWEEN {block1} AND {block1}"
     );
     let batches = client.query(&sql).await?;
     let total: usize = batches
