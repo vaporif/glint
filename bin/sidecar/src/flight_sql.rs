@@ -17,6 +17,18 @@ use tonic::{Request, Response, Status, transport::Server};
 
 const MAX_QUERY_LENGTH: usize = 16_384;
 
+fn validate_read_only(query: &str) -> Result<(), Status> {
+    const READ_PREFIXES: &[&str] = &["SELECT", "EXPLAIN", "SHOW", "DESCRIBE", "WITH", "VALUES"];
+    let trimmed = query.trim_start().to_ascii_uppercase();
+    if READ_PREFIXES.iter().any(|p| trimmed.starts_with(p)) {
+        Ok(())
+    } else {
+        Err(Status::unimplemented(
+            "only read-only queries (SELECT, EXPLAIN, SHOW, DESCRIBE, WITH, VALUES) are supported",
+        ))
+    }
+}
+
 pub async fn serve_flight_sql(
     port: u16,
     ctx: Arc<SessionContext>,
@@ -61,6 +73,7 @@ impl FlightSqlService for GlintFlightSqlService {
                 "query exceeds maximum length of {MAX_QUERY_LENGTH} bytes"
             )));
         }
+        validate_read_only(&query.query)?;
 
         let descriptor = request.into_inner();
 
@@ -104,6 +117,7 @@ impl FlightSqlService for GlintFlightSqlService {
                 "query exceeds maximum length of {MAX_QUERY_LENGTH} bytes"
             )));
         }
+        validate_read_only(&query)?;
 
         let batches = self
             .execute_sql(&query)
