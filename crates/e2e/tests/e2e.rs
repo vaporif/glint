@@ -77,7 +77,7 @@ async fn test_create_entity() -> eyre::Result<()> {
 }
 
 #[tokio::test]
-#[ignore = "requires eth-glint + glint-db-sidecar Docker images; run with `just e2e`"]
+#[ignore = "requires eth-glint + glint-sidecar Docker images; run with `just e2e`"]
 async fn test_flight_sql_query() -> eyre::Result<()> {
     let node = EthNodeHandle::spawn().await?;
     let sidecar = SidecarHandle::spawn(node.exex_volume_path()).await?;
@@ -309,7 +309,7 @@ async fn test_flight_sql_multi_entity_filters() -> eyre::Result<()> {
 }
 
 #[tokio::test]
-#[ignore = "requires eth-glint + glint-db-sidecar Docker images; run with `just e2e`"]
+#[ignore = "requires eth-glint + glint-sidecar Docker images; run with `just e2e`"]
 async fn test_historical_query() -> eyre::Result<()> {
     let node = EthNodeHandle::spawn().await?;
     let sidecar = SidecarHandle::spawn(node.exex_volume_path()).await?;

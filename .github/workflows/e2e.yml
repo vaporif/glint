@@ -19,10 +19,50 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  e2e:
-    name: E2E
+  build-image:
+    name: Build ${{ matrix.image }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: eth-glint
+            dockerfile: docker/Dockerfile.node
+            build-args: BINARY=eth-glint
+          - image: op-glint
+            dockerfile: docker/Dockerfile.node
+            build-args: BINARY=op-glint
+          - image: glint-sidecar
+            dockerfile: docker/Dockerfile.sidecar
+            build-args: ""
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          build-args: ${{ matrix.build-args }}
+          tags: ${{ matrix.image }}:latest
+          outputs: type=docker,dest=/tmp/${{ matrix.image }}.tar
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+
+      - name: Upload image
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.image }}-image
+          path: /tmp/${{ matrix.image }}.tar
+          retention-days: 1
+
+  e2e:
+    name: E2E
+    needs: build-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
 
@@ -30,12 +70,19 @@ jobs:
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
       - uses: Swatinem/rust-cache@v2
-      - uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker images
+      - name: Download images
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "*-image"
+          path: /tmp
+          merge-multiple: true
+
+      - name: Load Docker images
         run: |
-          docker buildx build --load --cache-from type=gha --cache-to type=gha,mode=max -f docker/Dockerfile.node -t eth-glint:latest .
-          docker buildx build --load --cache-from type=gha --cache-to type=gha,mode=max -f docker/Dockerfile.sidecar -t glint-db-sidecar:latest .
+          docker load -i /tmp/eth-glint.tar
+          docker load -i /tmp/op-glint.tar
+          docker load -i /tmp/glint-sidecar.tar
 
       - name: E2E tests
         run: nix develop --command cargo nextest run -p glint-e2e --run-ignored all
