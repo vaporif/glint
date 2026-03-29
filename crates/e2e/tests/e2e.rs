@@ -109,23 +109,17 @@ async fn test_flight_sql_query() -> eyre::Result<()> {
 }
 
 #[tokio::test]
-#[ignore = "requires built eth-glint + glint-analytics binaries; run with `just e2e`"]
+#[ignore = "requires eth-glint + glint-sidecar Docker images; run with `just e2e`"]
 async fn test_flight_sql_complex_query() -> eyre::Result<()> {
-    let node = tokio::task::spawn_blocking(EthNodeHandle::spawn)
-        .await
-        .expect("spawn_blocking panicked")?;
-
-    let exex_socket = node.exex_socket().to_path_buf();
-    let analytics = tokio::task::spawn_blocking(move || AnalyticsHandle::spawn(&exex_socket))
-        .await
-        .expect("spawn_blocking panicked")?;
+    let node = EthNodeHandle::spawn().await?;
+    let sidecar = SidecarHandle::spawn(node.exex_volume_path()).await?;
 
     let wallet = dev_wallet();
     let expected_owner = wallet.default_signer().address();
 
     let client = Glint::builder(node.rpc_url())
         .wallet(wallet)
-        .flight_url(&analytics.flight_url())
+        .flight_url(sidecar.flight_url())
         .build()
         .await?;
 
@@ -145,7 +139,7 @@ async fn test_flight_sql_complex_query() -> eyre::Result<()> {
     let tx_hash = receipt.transaction_hash;
     let entity_key = derive_entity_key(&tx_hash, payload, 0);
 
-    wait_for_analytics_ready(&analytics).await?;
+    wait_for_sidecar_ready(&sidecar).await?;
 
     let owner_hex = format!("{:x}", expected_owner);
     let sql = format!(
@@ -203,23 +197,17 @@ async fn test_flight_sql_complex_query() -> eyre::Result<()> {
 }
 
 #[tokio::test]
-#[ignore = "requires built eth-glint + glint-analytics binaries; run with `just e2e`"]
+#[ignore = "requires eth-glint + glint-sidecar Docker images; run with `just e2e`"]
 async fn test_flight_sql_multi_entity_filters() -> eyre::Result<()> {
-    let node = tokio::task::spawn_blocking(EthNodeHandle::spawn)
-        .await
-        .expect("spawn_blocking panicked")?;
-
-    let exex_socket = node.exex_socket().to_path_buf();
-    let analytics = tokio::task::spawn_blocking(move || AnalyticsHandle::spawn(&exex_socket))
-        .await
-        .expect("spawn_blocking panicked")?;
+    let node = EthNodeHandle::spawn().await?;
+    let sidecar = SidecarHandle::spawn(node.exex_volume_path()).await?;
 
     let wallet = dev_wallet();
     let expected_owner = wallet.default_signer().address();
 
     let client = Glint::builder(node.rpc_url())
         .wallet(wallet)
-        .flight_url(&analytics.flight_url())
+        .flight_url(sidecar.flight_url())
         .build()
         .await?;
 
@@ -239,7 +227,7 @@ async fn test_flight_sql_multi_entity_filters() -> eyre::Result<()> {
         entity_keys.push(derive_entity_key(&receipt.transaction_hash, *payload, 0));
     }
 
-    wait_for_analytics_ready(&analytics).await?;
+    wait_for_sidecar_ready(&sidecar).await?;
 
     // Filter by string annotation — should return 2 entities (alpha, beta)
     let batches = client
