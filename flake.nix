@@ -90,6 +90,7 @@
         "rustfmt"
         "rust-src"
         "rust-analyzer"
+        "llvm-tools"
       ];
     in {
       packages = {
@@ -135,6 +136,7 @@
           [
             toolchain
             pkgs.cargo-nextest
+            pkgs.cargo-llvm-cov
             pkgs.taplo
             pkgs.typos
             pkgs.llvmPackages.clang

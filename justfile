@@ -16,6 +16,12 @@ clippy:
 test:
     cargo nextest run --workspace
 
+coverage:
+    cargo llvm-cov nextest --workspace --lcov --output-path lcov.info
+
+coverage-html:
+    cargo llvm-cov nextest --workspace --html
+
 check-fmt:
     cargo fmt --all -- --check
 
