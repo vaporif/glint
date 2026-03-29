@@ -4535,33 +4535,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "glint-db-sidecar"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "arrow-flight",
- "axum",
- "clap",
- "color-eyre",
- "datafusion",
- "eyre",
- "futures",
- "glint-analytics",
- "glint-historical",
- "glint-primitives",
- "parking_lot",
- "prost",
- "rusqlite",
- "serde_json",
- "tempfile",
- "tokio",
- "tonic",
- "tower",
- "tracing",
- "tracing-subscriber 0.3.23",
-]
-
-[[package]]
 name = "glint-e2e"
 version = "0.1.0"
 dependencies = [
@@ -4745,6 +4718,33 @@ dependencies = [
  "prost",
  "tokio",
  "tonic",
+]
+
+[[package]]
+name = "glint-sidecar"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow-flight",
+ "axum",
+ "clap",
+ "color-eyre",
+ "datafusion",
+ "eyre",
+ "futures",
+ "glint-analytics",
+ "glint-historical",
+ "glint-primitives",
+ "parking_lot",
+ "prost",
+ "rusqlite",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tonic",
+ "tower",
+ "tracing",
+ "tracing-subscriber 0.3.23",
 ]
 
 [[package]]

@@ -45,7 +45,7 @@ just run-eth --dev --dev.block-time 1000ms --http
 Terminal 2 - start the sidecar (connects to the node's ExEx socket, serves Flight SQL + historical queries):
 
 ```bash
-just run-analytics
+just run-sidecar
 ```
 
 The node listens on `localhost:8545` (JSON-RPC). The sidecar exposes Flight SQL on `localhost:50051` and health on `localhost:8080`.
@@ -133,7 +133,7 @@ graph TB
         crud -->|committed block| notify
     end
 
-    subgraph sidecar["glint-db-sidecar"]
+    subgraph sidecar["glint-sidecar"]
         direction TB
 
         subgraph live["Live path (glint-analytics)"]
@@ -184,7 +184,7 @@ graph TB
 
 `glint-exex` watches committed blocks, converts entity event logs into Arrow RecordBatches, holds them in a ring buffer for replay, and pushes them over a unix socket.
 
-`glint-db-sidecar` is the query layer. It runs as a separate process, consumes the ExEx stream, and serves two tables over Flight SQL:
+`glint-sidecar` is the query layer. It runs as a separate process, consumes the ExEx stream, and serves two tables over Flight SQL:
 
 - **`entities`** - live entity state held in memory by `glint-analytics`. Roaring bitmap indexes on owner, string annotations, and numeric annotations. DataFusion with filter pushdown.
 - **`entity_events`** - historical event log persisted to SQLite by `glint-historical`. Block-range queries.

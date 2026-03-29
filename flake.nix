@@ -76,6 +76,13 @@
           cargoExtraArgs = "--bin eth-glint";
         });
 
+      glint-sidecar = craneLib.buildPackage (commonArgs
+        // {
+          inherit cargoArtifacts;
+          pname = "glint-sidecar";
+          cargoExtraArgs = "--bin glint-sidecar";
+        });
+
       toolchain = fenixPkgs.stable.withComponents [
         "cargo"
         "clippy"
@@ -86,7 +93,7 @@
       ];
     in {
       packages = {
-        inherit op-glint eth-glint cargoArtifacts;
+        inherit op-glint eth-glint glint-sidecar cargoArtifacts;
         default = op-glint;
       };
 

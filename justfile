@@ -47,9 +47,9 @@ run-op *args:
     cargo run -p glint-node-op -- node --chain etc/genesis.json {{args}}
 
 run-sidecar *args:
-    cargo run -p glint-db-sidecar -- {{args}}
+    cargo run -p glint-sidecar -- {{args}}
 
 e2e:
     docker build -f docker/Dockerfile.node -t eth-glint:latest .
-    docker build -f docker/Dockerfile.sidecar -t glint-db-sidecar:latest .
+    docker build -f docker/Dockerfile.sidecar -t glint-sidecar:latest .
     cargo nextest run -p glint-e2e --run-ignored all
