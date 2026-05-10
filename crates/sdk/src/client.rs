@@ -47,6 +47,11 @@ impl Glint<ReadWrite> {
     pub fn connect_with_wallet(rpc_url: &str, wallet: EthereumWallet) -> Result<Self, Error> {
         let rpc = HttpClientBuilder::default().build(rpc_url)?;
         let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .with_gas_estimation()
+            .with_blob_gas_estimation()
+            .with_simple_nonce_management()
+            .fetch_chain_id()
             .wallet(wallet)
             .connect_http(rpc_url.parse()?);
         Ok(Self::from_parts(provider, rpc))
@@ -224,7 +229,14 @@ impl GlintBuilder<ReadWrite> {
         let wallet = self.wallet.expect("wallet set by typestate");
         let rpc = HttpClientBuilder::default().build(&self.rpc_url)?;
         let url = self.rpc_url.parse()?;
-        let provider = ProviderBuilder::new().wallet(wallet).connect_http(url);
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .with_gas_estimation()
+            .with_blob_gas_estimation()
+            .with_simple_nonce_management()
+            .fetch_chain_id()
+            .wallet(wallet)
+            .connect_http(url);
         Self::finish(
             self.gas_limit,
             self.flight_url,
