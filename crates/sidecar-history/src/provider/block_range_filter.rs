@@ -97,3 +97,98 @@ fn apply_bound(
 fn is_block_number_col(expr: &Expr) -> bool {
     matches!(expr, Expr::Column(c) if c.name() == columns::BLOCK_NUMBER)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use datafusion::logical_expr::Between;
+    use datafusion::prelude::*;
+
+    #[test]
+    fn between_expression() {
+        let filter = Expr::Between(Between::new(
+            Box::new(col(columns::BLOCK_NUMBER)),
+            false,
+            Box::new(lit(10u64)),
+            Box::new(lit(20u64)),
+        ));
+        assert_eq!(extract_block_range(&[filter]), Some((10, 20)));
+    }
+
+    #[test]
+    fn between_with_non_block_column_ignored() {
+        let filter = Expr::Between(Between::new(
+            Box::new(col("owner")),
+            false,
+            Box::new(lit(10u64)),
+            Box::new(lit(20u64)),
+        ));
+        assert_eq!(extract_block_range(&[filter]), None);
+    }
+
+    #[test]
+    fn gt_lt_strict_bounds_offset_by_one() {
+        let filter = col(columns::BLOCK_NUMBER)
+            .gt(lit(99u64))
+            .and(col(columns::BLOCK_NUMBER).lt(lit(501u64)));
+        assert_eq!(extract_block_range(&[filter]), Some((100, 500)));
+    }
+
+    #[test]
+    fn lt_zero_saturates_to_zero() {
+        let filter = col(columns::BLOCK_NUMBER)
+            .lt(lit(0u64))
+            .and(col(columns::BLOCK_NUMBER).gt_eq(lit(0u64)));
+        assert_eq!(extract_block_range(&[filter]), Some((0, 0)));
+    }
+
+    #[test]
+    fn flipped_literal_left_lt() {
+        let filter = lit(100u64)
+            .lt(col(columns::BLOCK_NUMBER))
+            .and(col(columns::BLOCK_NUMBER).lt_eq(lit(500u64)));
+        assert_eq!(extract_block_range(&[filter]), Some((101, 500)));
+    }
+
+    #[test]
+    fn flipped_literal_left_lt_eq() {
+        let filter = lit(100u64)
+            .lt_eq(col(columns::BLOCK_NUMBER))
+            .and(col(columns::BLOCK_NUMBER).lt_eq(lit(500u64)));
+        assert_eq!(extract_block_range(&[filter]), Some((100, 500)));
+    }
+
+    #[test]
+    fn flipped_literal_left_gt() {
+        let filter = col(columns::BLOCK_NUMBER)
+            .gt_eq(lit(100u64))
+            .and(lit(500u64).gt(col(columns::BLOCK_NUMBER)));
+        assert_eq!(extract_block_range(&[filter]), Some((100, 499)));
+    }
+
+    #[test]
+    fn flipped_literal_left_gt_eq() {
+        let filter = col(columns::BLOCK_NUMBER)
+            .gt_eq(lit(100u64))
+            .and(lit(500u64).gt_eq(col(columns::BLOCK_NUMBER)));
+        assert_eq!(extract_block_range(&[filter]), Some((100, 500)));
+    }
+
+    #[test]
+    fn unrelated_column_ignored() {
+        let filter = col("owner").eq(lit("foo"));
+        assert_eq!(extract_block_range(&[filter]), None);
+    }
+
+    #[test]
+    fn intersect_takes_tightest_bounds() {
+        let lower = col(columns::BLOCK_NUMBER).gt_eq(lit(50u64));
+        let tighter_lower = col(columns::BLOCK_NUMBER).gt_eq(lit(100u64));
+        let upper = col(columns::BLOCK_NUMBER).lt_eq(lit(500u64));
+        let tighter_upper = col(columns::BLOCK_NUMBER).lt_eq(lit(400u64));
+        assert_eq!(
+            extract_block_range(&[lower, tighter_lower, upper, tighter_upper]),
+            Some((100, 400))
+        );
+    }
+}
